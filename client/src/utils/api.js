@@ -37,8 +37,9 @@ api.interceptors.response.use(
       store.dispatch(logout());
 
       // Redirect to login page if not already there
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+      const loginPath = "/PerformanceRewardsPortal/login";
+      if (window.location.pathname !== loginPath) {
+        window.location.href = loginPath;
       }
     }
 

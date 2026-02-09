@@ -2,6 +2,7 @@ import { getEmployee as getEmployeeModel } from "../../models/sql/Employee.js";
 import AppError from "../../utils/appError.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
+import { sendBonusRejectionEmail } from "../../utils/emailService.js";
 
 // Helper function to determine the next required approval level
 const getNextApprovalLevel = (employee) => {
@@ -1487,35 +1488,82 @@ export const processBonusApproval = async (req, res, next) => {
         {
           model: Employee,
           as: "supervisor",
-          attributes: ["id", "fullName", "employeeId"],
+          attributes: ["id", "fullName", "employeeId", "email"],
         },
         {
           model: Employee,
           as: "level1Approver",
-          attributes: ["id", "fullName", "employeeId"],
+          attributes: ["id", "fullName", "employeeId", "email"],
         },
         {
           model: Employee,
           as: "level2Approver",
-          attributes: ["id", "fullName", "employeeId"],
+          attributes: ["id", "fullName", "employeeId", "email"],
         },
         {
           model: Employee,
           as: "level3Approver",
-          attributes: ["id", "fullName", "employeeId"],
+          attributes: ["id", "fullName", "employeeId", "email"],
         },
         {
           model: Employee,
           as: "level4Approver",
-          attributes: ["id", "fullName", "employeeId"],
+          attributes: ["id", "fullName", "employeeId", "email"],
         },
         {
           model: Employee,
           as: "level5Approver",
-          attributes: ["id", "fullName", "employeeId"],
+          attributes: ["id", "fullName", "employeeId", "email"],
         },
       ],
     });
+
+    // Send email notification if rejected
+    if (action === "reject") {
+      // Determine the previous approver to notify
+      let previousApprover = null;
+      let previousApproverLevel = null;
+
+      // If rejecting at level 2, notify level 1 approver
+      // If rejecting at level 3, notify level 2 approver, etc.
+      if (approverLevel > 1) {
+        const previousLevel = approverLevel - 1;
+        const previousApproverKey = `level${previousLevel}Approver`;
+        previousApprover = updatedEmployee[previousApproverKey];
+        previousApproverLevel = previousLevel;
+      } else if (approverLevel === 1) {
+        // If rejecting at level 1, notify the supervisor who entered the bonus
+        previousApprover = updatedEmployee.supervisor;
+        previousApproverLevel = 0; // Supervisor
+      }
+
+      // Get the current approver's details
+      const currentApprover = await Employee.findByPk(approverId, {
+        attributes: ["fullName"],
+      });
+
+      // Send email if previous approver exists and has an email
+      if (previousApprover && previousApprover.email) {
+        try {
+          await sendBonusRejectionEmail({
+            toEmail: previousApprover.email,
+            toName: previousApprover.fullName,
+            employeeName: updatedEmployee.fullName,
+            employeeId: updatedEmployee.employeeId,
+            currentAmount: updatedEmployee.bonus2025,
+            rejectedBy: currentApprover?.fullName || "Approver",
+            rejectorLevel: approverLevel,
+            rejectionReason: comments || "",
+          });
+          console.log(`✅ Rejection notification email sent to ${previousApprover.email}`);
+        } catch (emailError) {
+          // Log error but don't fail the rejection process
+          console.error("❌ Failed to send rejection email:", emailError);
+        }
+      } else {
+        console.warn(`⚠️ No email address found for previous approver at level ${previousApproverLevel}`);
+      }
+    }
 
     res.status(200).json({
       success: true,

@@ -26,6 +26,7 @@
     "ldapts": "^8.1.6",
     "mongoose": "^9.0.0",
     "mssql": "^12.2.0",
+    "nodemailer": "^8.0.1",
     "nodemon": "^3.1.11",
     "sequelize": "^6.37.7",
     "tedious": "^19.2.0",

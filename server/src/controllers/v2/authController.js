@@ -187,13 +187,24 @@ export const logout = (req, res) => {
 // @access  Private
 export const getMe = async (req, res, next) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.isAuthenticated) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      });
+    }
+
     const Employee = getEmployee();
     const user = await Employee.findByPk(req.user.userId, {
       attributes: { exclude: ['password'] },
     });
 
     if (!user) {
-      return next(new AppError('User not found', 404));
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+      });
     }
 
     res.status(200).json({
