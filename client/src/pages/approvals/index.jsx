@@ -33,6 +33,8 @@ import { useNavigate } from "react-router-dom";
 import { selectUser } from "../../store/slices/userSlice";
 import api from "../../utils/api";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import ReplayIcon from "@mui/icons-material/Replay";
+import { ResubmitBonusModal } from "../../components/NotificationPanel";
 
 const Approvals = () => {
   const user = useSelector(selectUser);
@@ -81,6 +83,12 @@ const Approvals = () => {
     open: false,
     approvedCount: 0,
     skippedEmployees: [],
+  });
+
+  // Resubmit modal (triggered from next-level rejected status in table)
+  const [resubmitModal, setResubmitModal] = useState({
+    open: false,
+    notification: null,
   });
 
   const fetchApprovals = async () => {
@@ -818,7 +826,7 @@ const Approvals = () => {
         );
 
         return (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", height: "100%", gap: 1 }}>
             <Chip
               label={`Level ${currentLevel}`}
               size="small"
@@ -836,8 +844,8 @@ const Approvals = () => {
     {
       field: "actions",
       headerName: "Actions",
-      minWidth: 120,
-      flex: 0.6,
+      minWidth: 180,
+      flex: 0.9,
       sortable: false,
       renderCell: (params) => {
         const level = params.row.currentPendingLevel;
@@ -847,6 +855,65 @@ const Approvals = () => {
         const isRejected = currentStatus === "rejected";
         const approvalState = canApprove(params.row, level);
         const canPerformAction = approvalState.can;
+
+        // ── Check if next level has rejected ─────────────────────────────
+        const nextLevel = level + 1;
+        const hasNextLevel = !!(params.row[`level${nextLevel}Approver`] || params.row[`level${nextLevel}ApproverId`]);
+        const nextLevelRejected = hasNextLevel &&
+          params.row.approvalStatus?.[`level${nextLevel}`]?.status === "rejected";
+
+        if (nextLevelRejected) {
+          const rejectedByName = params.row[`level${nextLevel}ApproverName`] ||
+            params.row[`level${nextLevel}Approver`]?.fullName || "Next Approver";
+          const rejectionReason = params.row.approvalStatus?.[`level${nextLevel}`]?.comments || "";
+          return (
+            <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 0.4, height: "100%" }}>
+              <Tooltip title="Next level rejected — click to review and resubmit" arrow>
+                <Chip
+                  label="Rejected — Resubmit"
+                  color="error"
+                  size="small"
+                  icon={<ReplayIcon />}
+                  onClick={() => {
+                    setResubmitModal({
+                      open: true,
+                      notification: {
+                        id: null,
+                        payload: {
+                          employeeDbId: params.row.id || params.row._id,
+                          employeeId: params.row.employeeId,
+                          employeeName: params.row.fullName,
+                          currentBonus: params.row.bonus2025,
+                          rejectedBy: rejectedByName,
+                          rejectorLevel: nextLevel,
+                          rejectionReason,
+                          recipientLevel: level,
+                        },
+                      },
+                    });
+                  }}
+                  sx={{
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    alignSelf: "flex-start",
+                    "&:hover": {
+                      filter: "none",
+                      bgcolor: "error.main",
+                      boxShadow: "none",
+                      "& .MuiChip-label": { color: "#fff" },
+                      "& .MuiChip-icon": { color: "#fff" },
+                    },
+                    "&:active": { filter: "none", bgcolor: "error.main" },
+                    "& .MuiTouchRipple-root": { display: "none" },
+                  }}
+                />
+              </Tooltip>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.68rem", lineHeight: 1.2 }}>
+                from Level {nextLevel} · {rejectedByName}
+              </Typography>
+            </Box>
+          );
+        }
 
         const getTooltipTitle = (action) => {
           if (canPerformAction)
@@ -1371,6 +1438,7 @@ const Approvals = () => {
                 rows={filteredRows}
                 columns={unifiedColumns}
                 getRowId={(row) => row.uniqueId}
+                rowHeight={60}
                 initialState={{
                   pagination: {
                     paginationModel: { pageSize: 10, page: 0 },
@@ -1380,6 +1448,10 @@ const Approvals = () => {
                 disableRowSelectionOnClick
                 sx={{
                   border: 0,
+                  "& .MuiDataGrid-cell": {
+                    display: "flex",
+                    alignItems: "center",
+                  },
                   "& .MuiDataGrid-cell:hover": {
                     cursor: "pointer",
                   },
@@ -1596,6 +1668,17 @@ const Approvals = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Resubmit Bonus Modal — triggered from Next Level Status rejected chip */}
+      <ResubmitBonusModal
+        open={resubmitModal.open}
+        onClose={() => setResubmitModal({ open: false, notification: null })}
+        notification={resubmitModal.notification}
+        onSuccess={() => {
+          setResubmitModal({ open: false, notification: null });
+          fetchApprovals();
+        }}
+      />
 
       {/* Bulk Approval Result Dialog */}
       <Dialog

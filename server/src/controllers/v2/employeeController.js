@@ -3,6 +3,7 @@ import AppError from "../../utils/appError.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
 import { sendBonusRejectionEmail } from "../../utils/emailService.js";
+import { createNotification, markNotificationRead } from "./notificationController.js";
 
 // Helper function to determine the next required approval level
 const getNextApprovalLevel = (employee) => {
@@ -432,7 +433,13 @@ export const updateEmployeeBonus = async (req, res, next) => {
 
     // Check if already submitted
     const approvalStatus = employee.approvalStatus || {};
-    if (approvalStatus.submittedForApproval) {
+
+    // Check if any level has been rejected — if so, allow re-editing after reset
+    const hasRejection = [1, 2, 3, 4, 5].some(
+      (lvl) => approvalStatus[`level${lvl}`]?.status === "rejected"
+    );
+
+    if (approvalStatus.submittedForApproval && !hasRejection) {
       return next(
         new AppError(
           "Bonus has already been submitted for approval and cannot be edited",
@@ -441,12 +448,12 @@ export const updateEmployeeBonus = async (req, res, next) => {
       );
     }
 
-    // Update bonus and approval metadata
+    // Update bonus and reset approval state so it can be resubmitted cleanly
     employee.bonus2025 = parseFloat(bonus2025);
     employee.approvalStatus = {
-      ...approvalStatus,
       enteredBy: supervisorId,
       enteredAt: new Date(),
+      submittedForApproval: false, // Reset so supervisor can re-submit
     };
     await employee.save();
 
@@ -1563,6 +1570,29 @@ export const processBonusApproval = async (req, res, next) => {
       } else {
         console.warn(`⚠️ No email address found for previous approver at level ${previousApproverLevel}`);
       }
+
+      // Create in-app notification for the previous approver
+      if (previousApprover && previousApprover.id) {
+        const rejectorName = currentApprover?.fullName || "An approver";
+        const levelLabel = previousApproverLevel === 0 ? "Supervisor" : `Level ${previousApproverLevel} Approver`;
+        await createNotification({
+          recipientId: previousApprover.id,
+          type: "bonus_rejected",
+          title: `Bonus Rejected — Action Required`,
+          message: `${rejectorName} (Level ${approverLevel}) rejected the bonus for ${updatedEmployee.fullName}. As the ${levelLabel}, please review and resubmit with an updated amount.`,
+          payload: {
+            employeeDbId: updatedEmployee.id,
+            employeeId: updatedEmployee.employeeId,
+            employeeName: updatedEmployee.fullName,
+            currentBonus: updatedEmployee.bonus2025,
+            rejectedBy: rejectorName,
+            rejectorLevel: approverLevel,
+            rejectionReason: comments || "",
+            recipientLevel: previousApproverLevel,
+          },
+        });
+        console.log(`✅ In-app rejection notification created for approver ID ${previousApprover.id}`);
+      }
     }
 
     res.status(200).json({
@@ -1732,6 +1762,142 @@ export const checkAllApprovalsCompleted = async (req, res, next) => {
       message: allApprovalsCompleted
         ? "All approvals completed. Export is ready."
         : "Some employees still have pending approvals",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resubmit bonus with revised amount AND auto-approve the recipient's own level
+// @route   POST /api/v2/employees/:id/resubmit-and-approve
+// @access  Public (uses actorId query/body param)
+export const resubmitAndApprove = async (req, res, next) => {
+  try {
+    const Employee = getEmployeeModel();
+    const { id } = req.params;
+    const { bonus2025, comments, notificationId } = req.body || {};
+    const actorId =
+      req.user?.userId ||
+      req.user?.id ||
+      req.body?.actorId ||
+      req.query?.actorId;
+
+    if (!actorId || actorId === "undefined" || actorId === "null") {
+      return next(new AppError("Actor ID is required", 400));
+    }
+
+    if (bonus2025 === undefined || bonus2025 === null) {
+      return next(new AppError("Bonus amount is required", 400));
+    }
+
+    if (parseFloat(bonus2025) < 0) {
+      return next(new AppError("Bonus amount cannot be negative", 400));
+    }
+
+    const employee = await Employee.findByPk(id);
+    if (!employee) {
+      return next(new AppError("Employee not found", 404));
+    }
+
+    // Determine the actor's role for this employee:
+    // They may be the supervisor (level 0) or a level 1-5 approver
+    let actorLevel = null; // null = supervisor role
+
+    // Check if actor is a level approver for this employee
+    for (let level = 1; level <= 5; level++) {
+      if (employee[`level${level}ApproverId`]?.toString() === actorId.toString()) {
+        actorLevel = level;
+        break;
+      }
+    }
+
+    // If not an approver, check if they are the supervisor
+    const isSupervisor =
+      employee.supervisorId?.toString() === actorId.toString();
+
+    if (actorLevel === null && !isSupervisor) {
+      return next(
+        new AppError("You are not authorized to resubmit for this employee", 403)
+      );
+    }
+
+    // ── Step 1: Update the bonus amount ──────────────────────────────────────
+    const newBonus = parseFloat(bonus2025);
+
+    // Build fresh approval status: submitted=true, all levels reset to pending
+    const newStatus = {
+      submittedForApproval: true,
+      submittedAt: new Date(),
+      enteredBy: actorId,
+      enteredAt: new Date(),
+    };
+
+    if (employee.level1ApproverId)
+      newStatus.level1 = { status: "pending", approvedBy: null, approvedAt: null, comments: null };
+    if (employee.level2ApproverId)
+      newStatus.level2 = { status: "pending", approvedBy: null, approvedAt: null, comments: null };
+    if (employee.level3ApproverId)
+      newStatus.level3 = { status: "pending", approvedBy: null, approvedAt: null, comments: null };
+    if (employee.level4ApproverId)
+      newStatus.level4 = { status: "pending", approvedBy: null, approvedAt: null, comments: null };
+    if (employee.level5ApproverId)
+      newStatus.level5 = { status: "pending", approvedBy: null, approvedAt: null, comments: null };
+
+    // ── Step 2: If actor is a level approver, auto-approve their level ────────
+    // (Supervisor at level 0 just submits — Level 1 will need to approve)
+    if (actorLevel !== null) {
+      // Auto-approve all levels BEFORE the actor's level (they would have already approved these)
+      // Then auto-approve the actor's own level
+      for (let lvl = 1; lvl <= actorLevel; lvl++) {
+        const lk = `level${lvl}`;
+        if (newStatus[lk]) {
+          if (lvl < actorLevel) {
+            // Previous levels: mark as approved by actor (they resubmitted = endorsing up to their level)
+            newStatus[lk] = {
+              status: "approved",
+              approvedBy: actorId,
+              approvedAt: new Date(),
+              comments: lvl === actorLevel ? (comments || null) : null,
+            };
+          } else {
+            // Actor's own level: approved with their comments
+            newStatus[lk] = {
+              status: "approved",
+              approvedBy: actorId,
+              approvedAt: new Date(),
+              comments: comments || null,
+            };
+          }
+        }
+      }
+    }
+
+    // Save bonus + new approval status in one update
+    await Employee.update(
+      { bonus2025: newBonus, approvalStatus: newStatus },
+      { where: { id } }
+    );
+
+    // ── Step 3: Mark notification as read ────────────────────────────────────
+    if (notificationId) {
+      await markNotificationRead(notificationId);
+    }
+
+    // Build label for response message
+    const levelLabel =
+      actorLevel === null
+        ? "Supervisor"
+        : `Level ${actorLevel} Approver`;
+
+    const nextPendingLevel = actorLevel === null ? 1 : actorLevel + 1;
+    const hasNextLevel = !!employee[`level${nextPendingLevel}ApproverId`];
+
+    res.status(200).json({
+      success: true,
+      message: hasNextLevel
+        ? `Bonus updated and approved at ${levelLabel} level. Now awaiting Level ${nextPendingLevel} approval.`
+        : `Bonus updated and approved by ${levelLabel}. All approvals complete!`,
+      data: { employeeId: employee.employeeId, newBonus, actorLevel, levelLabel },
     });
   } catch (error) {
     next(error);

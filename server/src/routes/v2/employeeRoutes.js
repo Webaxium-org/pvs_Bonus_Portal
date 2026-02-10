@@ -17,6 +17,7 @@ import {
   bulkApproveAll,
   checkAllApprovalsCompleted,
   exportToUKG,
+  resubmitAndApprove,
 } from "../../controllers/v2/employeeController.js";
 import { protect } from "../../middlewares/auth.js";
 
@@ -31,6 +32,7 @@ router.post("/supervisor/submit-for-approval", submitBonusesForApproval);
 router.get("/bonus-approvals/my-approvals", getMyBonusApprovals);
 router.post("/:employeeId/bonus-approval", processBonusApproval);
 router.post("/approvals/bulk-approve", bulkApproveAll);
+router.post("/:id/resubmit-and-approve", resubmitAndApprove);
 
 // Template download route (before protect middleware to allow download)
 router.get("/template/download", downloadTemplate);

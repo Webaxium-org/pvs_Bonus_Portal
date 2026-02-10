@@ -3,6 +3,7 @@ import authRoutes from './authRoutes.js';
 import branchRoutes from './branchRoutes.js';
 import employeeRoutes from './employeeRoutes.js';
 import emailTestRoutes from './emailTestRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 
 const router = Router();
 
@@ -11,5 +12,6 @@ router.use('/api/v2/auth', authRoutes);
 router.use('/api/v2/branches', branchRoutes);
 router.use('/api/v2/employees', employeeRoutes);
 router.use('/api/v2/email', emailTestRoutes);
+router.use('/api/v2/notifications', notificationRoutes);
 
 export default router;

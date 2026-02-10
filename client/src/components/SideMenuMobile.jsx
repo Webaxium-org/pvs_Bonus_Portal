@@ -6,13 +6,12 @@ import Drawer, { drawerClasses } from "@mui/material/Drawer";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
-import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useColorScheme } from "@mui/material/styles";
-import MenuButton from "./MenuButton";
 import MenuContent from "./MenuContent";
 import CardAlert from "./CardAlert";
+import NotificationPanel from "./NotificationPanel";
 import { selectUser } from "../store/slices/userSlice";
 import logo from "../assets/logo.png";
 import logoBlack from "../assets/logo_black.png";
@@ -113,9 +112,7 @@ function SideMenuMobile({ open, toggleDrawer }) {
               {displayName}
             </Typography>
           </Stack>
-          <MenuButton showBadge>
-            <NotificationsRoundedIcon />
-          </MenuButton>
+          <NotificationPanel iconSize="small" />
         </Stack>
         <Divider />
         <Stack sx={{ flexGrow: 1 }}>
