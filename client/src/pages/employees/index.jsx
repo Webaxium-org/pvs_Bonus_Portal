@@ -11,19 +11,28 @@ import {
   InputAdornment,
   Grid,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import AddIcon from "@mui/icons-material/Add";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import AddEmployeeModal from "../../components/modals/AddEmployeeModal";
 import UploadEmployeesModal from "../../components/modals/UploadEmployeesModal";
 import EditEmployeeModal from "../../components/modals/EditEmployeeModal";
+import { useSelector } from "react-redux";
+import { selectUser } from "../../store/slices/userSlice";
 // import api from '../../utils/api';
 import api from "../../utils/api";
 
 const Employees = () => {
+  const user = useSelector(selectUser);
   const [employees, setEmployees] = useState([]);
   const [filteredEmployees, setFilteredEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,12 +41,17 @@ const Employees = () => {
   const [openUploadModal, setOpenUploadModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [openDeleteAllDialog, setOpenDeleteAllDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
+
+  // Check if current user is HR admin
+  const isHRAdmin = user?.email === "hr@pvschemicals.com";
 
   const fetchEmployees = async () => {
     setLoading(true);
@@ -139,6 +153,33 @@ const Employees = () => {
     setOpenEditModal(false);
     setSelectedEmployee(null);
     fetchEmployees(); // Refresh the list
+  };
+
+  const handleDeleteAllClick = () => {
+    setOpenDeleteAllDialog(true);
+  };
+
+  const handleCloseDeleteAllDialog = () => {
+    setOpenDeleteAllDialog(false);
+  };
+
+  const handleConfirmDeleteAll = async () => {
+    setDeleting(true);
+    setError("");
+
+    try {
+      await api.delete("/v2/employees/delete-all");
+      setOpenDeleteAllDialog(false);
+      fetchEmployees(); // Refresh the list
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "An error occurred while deleting employees";
+      setError(errorMessage);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Extract unique companies from all employees
@@ -366,6 +407,16 @@ const Employees = () => {
               >
                 Upload Excel
               </Button>
+              {isHRAdmin && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteSweepIcon />}
+                  onClick={handleDeleteAllClick}
+                >
+                  Delete All
+                </Button>
+              )}
             </Box>
           </Box>
         </Box>
@@ -422,6 +473,37 @@ const Employees = () => {
         onEmployeeUpdated={handleEmployeeUpdated}
         employee={selectedEmployee}
       />
+
+      {/* Delete All Confirmation Dialog */}
+      <Dialog
+        open={openDeleteAllDialog}
+        onClose={handleCloseDeleteAllDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete All Employees</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete all employees except hr@pvschemicals.com?
+          </DialogContentText>
+          <DialogContentText sx={{ mt: 2, color: "error.main", fontWeight: "bold" }}>
+            This action cannot be undone! All employee records, bonuses, and approval data will be permanently deleted.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteAllDialog} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDeleteAll}
+            variant="contained"
+            color="error"
+            disabled={deleting}
+          >
+            {deleting ? "Deleting..." : "Yes, Delete All"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

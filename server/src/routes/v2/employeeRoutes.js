@@ -18,6 +18,7 @@ import {
   checkAllApprovalsCompleted,
   exportToUKG,
   resubmitAndApprove,
+  deleteAllEmployees,
 } from "../../controllers/v2/employeeController.js";
 import { protect } from "../../middlewares/auth.js";
 
@@ -45,6 +46,13 @@ router.route("/").get(getEmployees).post(createEmployee);
 // Bulk upload route
 router.post("/bulk", bulkCreateEmployees);
 
+// Delete all employees route (HR Admin only) - MUST be before /:id routes
+router.delete("/delete-all", deleteAllEmployees);
+
+// UKG Export routes - must be before /:id routes
+router.get("/ukg/approvals-status", checkAllApprovalsCompleted);
+router.get("/ukg/export", exportToUKG);
+
 router
   .route("/:id")
   .get(getEmployee)
@@ -53,9 +61,5 @@ router
 
 router.patch("/:id/toggle-status", toggleEmployeeStatus);
 router.put("/:id/bonus", updateEmployeeBonus);
-
-// UKG Export routes - must be before /:id routes
-router.get("/ukg/approvals-status", checkAllApprovalsCompleted);
-router.get("/ukg/export", exportToUKG);
 
 export default router;

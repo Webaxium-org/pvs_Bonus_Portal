@@ -1089,6 +1089,9 @@ const Approvals = () => {
     return approvalState.can;
   }).length;
 
+  // Check if any employees have been approved or rejected
+  const hasProcessedEmployees = totalApproved > 0 || totalRejected > 0;
+
   return (
     <Box sx={{ width: "100%", maxWidth: { sm: "100%", md: "1700px" } }}>
       <Box
@@ -1243,7 +1246,9 @@ const Approvals = () => {
                     ? totalPending === 0
                       ? "There is no one to approve"
                       : "All pending employees need bonus allocation or previous level approvals"
-                    : "Approve all eligible pending bonuses"
+                    : hasProcessedEmployees
+                      ? `Approve ${approvableCount} remaining eligible bonus${approvableCount !== 1 ? "es" : ""}`
+                      : "Approve all eligible pending bonuses"
                 }
                 arrow
               >
@@ -1286,7 +1291,7 @@ const Approvals = () => {
                       transition: "all 0.2s ease-in-out",
                     }}
                   >
-                    Approve All
+                    {hasProcessedEmployees ? "Approve Remaining" : "Approve All"}
                   </Button>
                 </span>
               </Tooltip>
@@ -1628,14 +1633,14 @@ const Approvals = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Approve All Pending Bonuses</DialogTitle>
+        <DialogTitle>{hasProcessedEmployees ? "Approve Remaining Pending Bonuses" : "Approve All Pending Bonuses"}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <Typography variant="body1" sx={{ mb: 2 }}>
-              Are you sure you want to approve all pending employee bonuses at once?
+              Are you sure you want to approve {hasProcessedEmployees ? "the remaining" : "all"} pending employee bonuses at once?
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              This action will approve <strong>{totalPending}</strong> pending bonus{totalPending !== 1 ? "es" : ""} that are eligible for your approval.
+              This action will approve <strong>{approvableCount}</strong> {hasProcessedEmployees ? "remaining " : ""}pending bonus{approvableCount !== 1 ? "es" : ""} that are eligible for your approval.
             </Typography>
             <Typography variant="body2" color="warning.main" sx={{ fontStyle: "italic" }}>
               Note: Only employees with bonuses entered and previous levels approved will be processed.
@@ -1664,7 +1669,7 @@ const Approvals = () => {
             disabled={bulkSubmitting}
             sx={{ color: "white" }}
           >
-            {bulkSubmitting ? "Processing..." : "Yes, Approve All"}
+            {bulkSubmitting ? "Processing..." : hasProcessedEmployees ? "Yes, Approve Remaining" : "Yes, Approve All"}
           </Button>
         </DialogActions>
       </Dialog>

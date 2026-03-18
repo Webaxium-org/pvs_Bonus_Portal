@@ -1968,3 +1968,31 @@ export const exportToUKG = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Delete all employees except hr@pvschemicals.com
+// @route   DELETE /api/v2/employees/delete-all
+// @access  Private (HR Admin only - hr@pvschemicals.com)
+export const deleteAllEmployees = async (req, res, next) => {
+  try {
+    const Employee = getEmployeeModel();
+
+    // Delete all employees except hr@pvschemicals.com
+    // Using OR condition to handle NULL emails and non-matching emails
+    const deletedCount = await Employee.destroy({
+      where: {
+        [Op.or]: [
+          { email: { [Op.ne]: "hr@pvschemicals.com" } },
+          { email: null },
+        ],
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} employees`,
+      deletedCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
