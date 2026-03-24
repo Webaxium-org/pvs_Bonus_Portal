@@ -723,12 +723,42 @@ export const bulkCreateEmployees = async (req, res, next) => {
       approverRoleCount = updateCount;
     }
 
+    // Also set approver role for supervisors who have employees under them
+    const supervisorIds = new Set();
+    const employeesWithSupervisors = await Employee.findAll({
+      where: {
+        supervisorId: { [Op.ne]: null },
+      },
+    });
+
+    for (const emp of employeesWithSupervisors) {
+      if (emp.supervisorId) supervisorIds.add(emp.supervisorId);
+    }
+
+    // Update supervisors who are not already approvers
+    let supervisorRoleCount = 0;
+    if (supervisorIds.size > 0) {
+      // Only update those who don't already have approver role
+      const supervisorsToUpdate = Array.from(supervisorIds).filter(
+        id => !approverIds.has(id)
+      );
+
+      if (supervisorsToUpdate.length > 0) {
+        const [updateCount] = await Employee.update(
+          { role: "approver", isApprover: true },
+          { where: { id: { [Op.in]: supervisorsToUpdate } } },
+        );
+        supervisorRoleCount = updateCount;
+      }
+    }
+
     // If there were skipped duplicates, return 207 instead of 201
     const statusCode = skippedDuplicates.length > 0 ? 207 : 201;
+    const totalRolesSet = approverRoleCount + supervisorRoleCount;
     const message =
       skippedDuplicates.length > 0
-        ? `Partially successful: ${createdEmployees.length} employees created, ${skippedDuplicates.length} skipped (already exist). Synced ${reportingMapped} approver relationships. Set ${approverRoleCount} employees as approvers.`
-        : `Successfully created ${createdEmployees.length} employees. Synced ${reportingMapped} approver relationships. Set ${approverRoleCount} employees as approvers.`;
+        ? `Partially successful: ${createdEmployees.length} employees created, ${skippedDuplicates.length} skipped (already exist). Synced ${reportingMapped} approver relationships. Set ${totalRolesSet} employees as approvers/supervisors.`
+        : `Successfully created ${createdEmployees.length} employees. Synced ${reportingMapped} approver relationships. Set ${totalRolesSet} employees as approvers/supervisors.`;
 
     res.status(statusCode).json({
       success: true,
@@ -736,6 +766,8 @@ export const bulkCreateEmployees = async (req, res, next) => {
       count: createdEmployees.length,
       reportingMapped,
       approverRolesSet: approverRoleCount,
+      supervisorRolesSet: supervisorRoleCount,
+      totalRolesSet: totalRolesSet,
       duplicates: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
       data: createdEmployees.map((emp) => {
         const empData = emp.toJSON();
@@ -1010,7 +1042,7 @@ export const resetAndSyncApprovers = async (req, res, next) => {
   }
 };
 
-// @desc    Set approver role for all employees who are approvers
+// @desc    Set approver role for all employees who are approvers or supervisors
 // @route   POST /api/v2/employees/set-approver-roles
 // @access  Private (Admin only)
 export const setApproverRoles = async (req, res, next) => {
@@ -1050,11 +1082,46 @@ export const setApproverRoles = async (req, res, next) => {
       approverRoleCount = updateCount;
     }
 
+    // Also find all employees who are supervisors
+    const employeesWithSupervisors = await Employee.findAll({
+      where: {
+        supervisorId: { [Op.ne]: null },
+      },
+    });
+
+    // Collect all unique supervisor IDs
+    const supervisorIds = new Set();
+    for (const emp of employeesWithSupervisors) {
+      if (emp.supervisorId) supervisorIds.add(emp.supervisorId);
+    }
+
+    // Update supervisors who are not already approvers
+    let supervisorRoleCount = 0;
+    if (supervisorIds.size > 0) {
+      // Only update those who don't already have approver role
+      const supervisorsToUpdate = Array.from(supervisorIds).filter(
+        id => !approverIds.has(id)
+      );
+
+      if (supervisorsToUpdate.length > 0) {
+        const [updateCount] = await Employee.update(
+          { role: "approver", isApprover: true },
+          { where: { id: { [Op.in]: supervisorsToUpdate } } },
+        );
+        supervisorRoleCount = updateCount;
+      }
+    }
+
+    const totalUpdated = approverRoleCount + supervisorRoleCount;
+
     res.status(200).json({
       success: true,
-      message: `Successfully set approver role for ${approverRoleCount} employees`,
+      message: `Successfully set approver/supervisor role for ${totalUpdated} employees`,
       totalApprovers: approverIds.size,
-      updated: approverRoleCount,
+      totalSupervisors: supervisorIds.size,
+      approverRolesSet: approverRoleCount,
+      supervisorRolesSet: supervisorRoleCount,
+      totalUpdated: totalUpdated,
     });
   } catch (error) {
     next(error);
