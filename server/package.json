@@ -10,7 +10,8 @@
     "seed": "node src/utils/seedDatabase.js",
     "seed:users": "node src/scripts/seedUsers.js",
     "sql:create": "node src/scripts/createSQLTables.js",
-    "sql:migrate": "node src/scripts/migrateMongoToSQL.js"
+    "sql:migrate": "node src/scripts/migrateMongoToSQL.js",
+    "seed:hr": "node src/scripts/insertHRManager.js"
   },
   "keywords": [],
   "author": "",

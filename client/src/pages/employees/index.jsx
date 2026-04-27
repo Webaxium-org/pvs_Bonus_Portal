@@ -348,7 +348,7 @@ const Employees = () => {
             <TextField
               select
               size="small"
-              label="Company"
+              label="Subsidiary"
               value={selectedCompany}
               onChange={(e) => setSelectedCompany(e.target.value)}
               sx={{ minWidth: 200 }}

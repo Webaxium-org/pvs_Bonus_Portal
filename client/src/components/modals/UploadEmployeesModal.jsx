@@ -626,7 +626,7 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
                 <strong>Legacy format also supported:</strong> Employee Number, First Name, Last Name
               </Typography>
               <Typography variant="caption" component="div" sx={{ mb: 0.5 }}>
-                <strong>Optional columns:</strong> SSN, Company, Company Code,
+                <strong>Optional columns:</strong> SSN, Subsidiary, Subsidiary Code,
                 Supervisor Name, Location, 1st Reporting, 2nd Reporting, 3rd
                 Reporting, 4th Reporting, 5th Reporting, State/Province, Work
                 Email, Last Hire Date, Employee Type, Job Title, Salary or Hourly,

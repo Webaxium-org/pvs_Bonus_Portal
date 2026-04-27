@@ -338,7 +338,7 @@ const AddEmployeeModal = ({ open, onClose, onEmployeeAdded }) => {
               <TextField
                 fullWidth
                 name="company"
-                label="Company"
+                label="Subsidiary"
                 value={formData.company}
                 onChange={handleChange}
                 disabled={loading}
@@ -348,7 +348,7 @@ const AddEmployeeModal = ({ open, onClose, onEmployeeAdded }) => {
               <TextField
                 fullWidth
                 name="companyCode"
-                label="Company Code"
+                label="Subsidiary Code"
                 value={formData.companyCode}
                 onChange={handleChange}
                 disabled={loading}

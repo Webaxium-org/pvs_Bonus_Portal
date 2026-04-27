@@ -335,7 +335,7 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
               <TextField
                 fullWidth
                 name="company"
-                label="Company"
+                label="Subsidiary"
                 value={formData.company}
                 onChange={handleChange}
                 disabled={loading}
@@ -346,7 +346,7 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
               <TextField
                 fullWidth
                 name="companyCode"
-                label="Company Code"
+                label="Subsidiary Code"
                 value={formData.companyCode}
                 onChange={handleChange}
                 disabled={loading}

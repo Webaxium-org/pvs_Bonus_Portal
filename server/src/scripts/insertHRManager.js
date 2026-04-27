@@ -1,121 +1,135 @@
 import dotenv from 'dotenv';
+import { Sequelize } from 'sequelize';
+import bcrypt from 'bcryptjs';
 
-// Load environment variables first
 dotenv.config();
 
 const insertHRManager = async () => {
   try {
-    // Dynamic imports after dotenv is loaded
-    const { getSequelize } = await import('../config/sqlDatabase.js');
-    const { Employee } = await import('../models/sql/index.js');
+    console.log('========================================');
+    console.log('Seeding Initial HR Manager');
+    console.log('========================================\n');
 
-    // Initialize Sequelize
-    const sequelize = getSequelize();
+    // Parse instance name from host (e.g., "localhost\\SQLEXPRESS")
+    const host = process.env.SQL_SERVER_HOST || 'localhost';
+    const instanceName = host.includes('\\') ? host.split('\\')[1] : undefined;
+    const serverName = host.includes('\\') ? host.split('\\')[0] : host;
 
-    // Test connection
-    await sequelize.authenticate();
-    console.log('✅ Connected to SQL Server');
-
-    // MongoDB document data
-    const mongoEmployee = {
-      employeeId: "EMP001",
-      firstName: "HR",
-      lastName: "Manager",
-      email: "hr@pvschemicals.com",
-      position: "HR Manager",
-      hireDate: new Date("2020-01-01T00:00:00.000Z"),
-      salary: 75000,
-      password: "$2b$10$dSmTyUDPv1PlFItWJk0stOyJ8R4IntB5oaLd5Ug50q9ZunC9PPOsm",
-      isApprover: false,
-      role: "hr",
-      isActive: true
+    const dialectOptions = {
+      options: {
+        encrypt: process.env.SQL_SERVER_ENCRYPT === 'true',
+        trustServerCertificate: process.env.SQL_SERVER_TRUST_CERT !== 'false',
+        enableArithAbort: true,
+      },
+      authentication: {
+        type: 'default',
+      },
     };
 
-    // Map to SQL Server schema
-    const sqlEmployee = {
-      employeeId: mongoEmployee.employeeId,
-      firstName: mongoEmployee.firstName,
-      lastName: mongoEmployee.lastName,
-      email: mongoEmployee.email,
-      password: mongoEmployee.password,
-      position: mongoEmployee.position,
-      jobTitle: mongoEmployee.position, // Use position as jobTitle
-      role: mongoEmployee.role,
-      hireDate: mongoEmployee.hireDate,
-      salary: mongoEmployee.salary,
-      annualSalary: mongoEmployee.salary, // Copy salary to annualSalary
-      isApprover: mongoEmployee.isApprover,
-      isActive: mongoEmployee.isActive,
-
-      // Set default values for other fields
-      ssn: null,
-      department: null,
-      company: 'PVS Chemicals',
-      companyCode: null,
-      location: null,
-      supervisorId: null,
-      supervisorName: null,
-      lastHireDate: null,
-      employeeType: 'Full-Time',
-      salaryType: 'Salary',
-      hourlyPayRate: 0,
-      bonus2024: 0,
-      bonus2025: 0,
-      phone: null,
-      addressStreet: null,
-      addressCity: null,
-      addressState: null,
-      addressZipCode: null,
-      addressCountry: 'USA',
-      approverLevel: null,
-      level1ApproverId: null,
-      level1ApproverName: null,
-      level2ApproverId: null,
-      level2ApproverName: null,
-      level3ApproverId: null,
-      level3ApproverName: null,
-      level4ApproverId: null,
-      level4ApproverName: null,
-      level5ApproverId: null,
-      level5ApproverName: null,
-      approvalStatus: null
-    };
-
-    // Check if employee already exists
-    const existingEmployee = await Employee.findOne({
-      where: { employeeId: sqlEmployee.employeeId }
-    });
-
-    if (existingEmployee) {
-      console.log('⚠️  Employee EMP001 already exists. Updating...');
-      await Employee.update(sqlEmployee, {
-        where: { employeeId: sqlEmployee.employeeId }
-      });
-      console.log('✅ Employee EMP001 updated successfully');
-    } else {
-      // Insert the employee
-      const newEmployee = await Employee.create(sqlEmployee);
-      console.log('✅ Employee inserted successfully!');
-      console.log('Employee ID:', newEmployee.id);
-      console.log('Employee Code:', newEmployee.employeeId);
-      console.log('Name:', newEmployee.firstName, newEmployee.lastName);
-      console.log('Email:', newEmployee.email);
-      console.log('Role:', newEmployee.role);
+    if (instanceName) {
+      dialectOptions.options.instanceName = instanceName;
     }
 
-    // Fetch and display the employee
-    const employee = await Employee.findOne({
-      where: { employeeId: sqlEmployee.employeeId },
-      attributes: { exclude: ['password'] }
+    console.log('Database Configuration:');
+    console.log(`- Server: ${serverName}${instanceName ? '\\' + instanceName : ''}`);
+    console.log(`- Database: ${process.env.SQL_SERVER_DATABASE}`);
+    console.log(`- User: ${process.env.SQL_SERVER_USER}\n`);
+
+    // Create a fresh Sequelize instance directly
+    const sequelize = new Sequelize({
+      dialect: 'mssql',
+      host: serverName,
+      port: instanceName ? undefined : (parseInt(process.env.SQL_SERVER_PORT) || 1433),
+      database: process.env.SQL_SERVER_DATABASE,
+      username: process.env.SQL_SERVER_USER,
+      password: process.env.SQL_SERVER_PASSWORD,
+      dialectOptions,
+      logging: false,
+      pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
     });
 
-    console.log('\n📋 Employee in SQL Database:');
-    console.log(JSON.stringify(employee, null, 2));
+    console.log('Testing database connection...');
+    await sequelize.authenticate();
+    console.log('✅ Database connection successful!\n');
 
+    // Initialize models and sync tables
+    console.log('Initializing models...');
+    const { initModels } = await import('../models/sql/index.js');
+    const models = initModels(sequelize);
+    await sequelize.sync({ alter: false });
+    console.log('✅ Models initialized and tables synced\n');
+
+    const hrEmployeeId = 'HR001';
+    const hrEmail = 'hr@pvschemicals.com';
+    const hrPassword = 'abc123xyz';
+
+    // Check if HR user already exists
+    console.log('Checking if HR user already exists...');
+    const existingHR = await models.Employee.findOne({
+      where: { email: hrEmail },
+    });
+
+    if (existingHR) {
+      console.log('⚠️  HR user already exists:');
+      console.log(`   - Employee ID: ${existingHR.employeeId}`);
+      console.log(`   - Email: ${existingHR.email}`);
+      console.log(`   - Full Name: ${existingHR.fullName}`);
+      console.log(`   - Role: ${existingHR.role}\n`);
+
+      console.log('Updating existing HR user credentials...');
+      const hashedPassword = await bcrypt.hash(hrPassword, 10);
+      await existingHR.update({
+        password: hashedPassword,
+        role: 'hr',
+        isActive: true,
+      });
+      console.log('✅ HR user updated successfully!\n');
+    } else {
+      console.log('Creating new HR user...');
+      const hashedPassword = await bcrypt.hash(hrPassword, 10);
+
+      const hrUser = await models.Employee.create({
+        employeeId: hrEmployeeId,
+        fullName: 'HR Manager',
+        email: hrEmail,
+        password: hashedPassword,
+        role: 'hr',
+        position: 'HR Manager',
+        jobTitle: 'HR Manager',
+        department: 'Human Resources',
+        company: 'PVS Chemicals',
+        employeeType: 'Full-Time',
+        salaryType: 'Salary',
+        salary: 0,
+        annualSalary: 0,
+        hourlyPayRate: 0,
+        bonus2024: 0,
+        bonus2025: 0,
+        addressCountry: 'USA',
+        isApprover: false,
+        isActive: true,
+        hireDate: new Date(),
+      });
+
+      console.log('✅ HR user created successfully!');
+      console.log(`   - Employee ID: ${hrUser.employeeId}`);
+      console.log(`   - Email: ${hrUser.email}`);
+      console.log(`   - Full Name: ${hrUser.fullName}`);
+      console.log(`   - Role: ${hrUser.role}\n`);
+    }
+
+    console.log('========================================');
+    console.log('Login Credentials:');
+    console.log('========================================');
+    console.log(`Email:    ${hrEmail}`);
+    console.log(`Password: ${hrPassword}`);
+    console.log('========================================\n');
+
+    await sequelize.close();
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error inserting employee:', error.message);
-    console.error(error);
+    console.error('\n❌ Error inserting HR user:', error.message);
+    console.error('Full error:', error);
     process.exit(1);
   }
 };
