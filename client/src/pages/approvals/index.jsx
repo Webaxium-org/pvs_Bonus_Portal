@@ -192,6 +192,8 @@ const Approvals = () => {
         `/v2/employees/approvals/bulk-approve?approverId=${userId}`,
         {
           comments: bulkComments,
+          company: selectedCompany !== "" ? selectedCompany : undefined,
+          supervisorName: selectedSupervisor !== "" ? selectedSupervisor : undefined,
         },
       );
 

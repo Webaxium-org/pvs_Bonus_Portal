@@ -5,6 +5,12 @@ import { Op } from "sequelize";
 import { sendBonusRejectionEmail } from "../../utils/emailService.js";
 import { createNotification, markNotificationRead } from "./notificationController.js";
 
+const PROTECTED_EMAILS = [
+  "smoffitt@pvschemicals.com",
+  "sthelen@pvschemicals.com",
+  "mshajahan@pvschemicals.com",
+];
+
 // Helper function to determine the next required approval level
 const getNextApprovalLevel = (employee) => {
   // Only process if submitted for approval
@@ -216,13 +222,17 @@ export const updateEmployee = async (req, res, next) => {
 export const deleteEmployee = async (req, res, next) => {
   try {
     const Employee = getEmployeeModel();
-    const deleted = await Employee.destroy({
-      where: { id: req.params.id },
-    });
-
-    if (!deleted) {
+    
+    const employee = await Employee.findByPk(req.params.id, { attributes: ["id", "email"] });
+    if (!employee) {
       return next(new AppError("Employee not found", 404));
     }
+
+    if (PROTECTED_EMAILS.includes(employee.email)) {
+      return next(new AppError("This employee account is protected. You are not authorized to delete this account.", 403));
+    }
+
+    await employee.destroy();
 
     res.status(200).json({
       success: true,
@@ -1684,23 +1694,35 @@ export const bulkApproveAll = async (req, res, next) => {
       req.body?.approverId ||
       req.query?.approverId;
     const { comments } = req.body || {};
+    const company = req.query?.company || req.body?.company;
+    const supervisorName = req.query?.supervisorName || req.body?.supervisorName;
 
     if (!approverId || approverId === "undefined" || approverId === "null") {
       return next(new AppError("Approver ID is required", 400));
     }
 
+    // Build where clause with optional company filter
+    const whereClause = {
+      isActive: true,
+      [Op.or]: [
+        { level1ApproverId: approverId },
+        { level2ApproverId: approverId },
+        { level3ApproverId: approverId },
+        { level4ApproverId: approverId },
+        { level5ApproverId: approverId },
+      ],
+    };
+
+    if (company) {
+      whereClause.company = company;
+    }
+    if (supervisorName) {
+      whereClause.supervisorName = supervisorName;
+    }
+
     // Get all employees where this user is an approver at any level
     const allEmployees = await Employee.findAll({
-      where: {
-        isActive: true,
-        [Op.or]: [
-          { level1ApproverId: approverId },
-          { level2ApproverId: approverId },
-          { level3ApproverId: approverId },
-          { level4ApproverId: approverId },
-          { level5ApproverId: approverId },
-        ],
-      },
+      where: whereClause,
     });
 
     // Filter to those where this user is the NEXT pending approver
@@ -1980,10 +2002,36 @@ export const exportToUKG = async (req, res, next) => {
     const Employee = getEmployeeModel();
 
     // Get all active employees
-    const employees = await Employee.findAll({
+    const allEmployees = await Employee.findAll({
       where: { isActive: true },
       order: [["employeeId", "ASC"]],
     });
+
+    // Only include employees who have bonuses entered and all assigned approval levels approved
+    const employees = allEmployees.filter((emp) => {
+      const approvalStatus = emp.approvalStatus || {};
+
+      const hasBonus = parseFloat(emp.bonus2025) > 0 || parseFloat(emp.bonus2024) > 0;
+
+      if (!hasBonus || !approvalStatus.submittedForApproval) return false;
+
+      for (let level = 1; level <= 5; level++) {
+        const levelKey = `level${level}`;
+        const approverIdField = `${levelKey}ApproverId`;
+        if (emp[approverIdField] && approvalStatus[levelKey]?.status !== "approved") {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (employees.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No employees have completed all approval levels yet.",
+      });
+    }
 
     // Map employees to UKG template format
     const excelData = employees.map((emp) => ({
