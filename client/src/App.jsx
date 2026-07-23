@@ -25,6 +25,7 @@ import {
   dataGridCustomizations,
 } from "./theme/customizations";
 import AppTheme from "./theme/shared/AppTheme";
+import FaviconUpdater from "./components/FaviconUpdater";
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -71,6 +72,7 @@ function App(props) {
     <Provider store={store}>
       <AppTheme {...props} themeComponents={xThemeComponents}>
         <CssBaseline enableColorScheme />
+        <FaviconUpdater />
         <AppInitializer>
           <BrowserRouter basename="/PerformanceRewardsPortal">
             <Routes>

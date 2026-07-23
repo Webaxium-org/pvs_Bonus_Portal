@@ -1,4 +1,6 @@
+import { useState } from "react";
 import Box from "@mui/material/Box";
+import { alpha } from "@mui/material/styles";
 import { Outlet } from "react-router-dom";
 import SideMenu from "../components/SideMenu";
 import AppNavbar from "../components/AppNavbar";
@@ -6,11 +8,15 @@ import Header from "../components/Header";
 import { Stack } from "@mui/material";
 
 const RootLayout = () => {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
     <Box sx={{ display: "flex" }}>
-      <SideMenu />
+      <SideMenu
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((prev) => !prev)}
+      />
       <AppNavbar />
-      {/* Main content */}
       <Box
         component="main"
         sx={(theme) => ({
@@ -21,6 +27,7 @@ const RootLayout = () => {
             ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
             : alpha(theme.palette.background.default, 1),
           overflow: "auto",
+          transition: "margin-left 0.2s ease",
         })}
       >
         <Stack

@@ -15,6 +15,12 @@ import MenuButton from "./MenuButton";
 import { logout } from "../store/slices/userSlice";
 import api from "../utils/api";
 import Stack from "@mui/material/Stack";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogActions from "@mui/material/DialogActions";
 
 const MenuItem = styled(MuiMenuItem)({
   margin: "2px 0",
@@ -24,6 +30,7 @@ export default function OptionsMenu() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [anchorEl, setAnchorEl] = React.useState(null);
+  const [openLogoutConfirm, setOpenLogoutConfirm] = React.useState(false);
   const open = Boolean(anchorEl);
 
   const handleClick = (event) => {
@@ -35,6 +42,7 @@ export default function OptionsMenu() {
   };
 
   const handleLogout = async () => {
+    setOpenLogoutConfirm(false);
     try {
       await api.post("/v2/auth/logout");
     } catch (error) {
@@ -44,7 +52,6 @@ export default function OptionsMenu() {
       dispatch(logout());
       // Redirect to login page
       navigate("/login");
-      handleClose();
     }
   };
 
@@ -78,7 +85,10 @@ export default function OptionsMenu() {
         }}
       >
         <MenuItem
-          onClick={handleLogout}
+          onClick={() => {
+            handleClose();
+            setOpenLogoutConfirm(true);
+          }}
           sx={{
             [`& .${listItemIconClasses.root}`]: {
               ml: "auto",
@@ -94,6 +104,28 @@ export default function OptionsMenu() {
           </Stack>
         </MenuItem>
       </Menu>
+
+      <Dialog
+        open={openLogoutConfirm}
+        onClose={() => setOpenLogoutConfirm(false)}
+        aria-labelledby="logout-dialog-title"
+        aria-describedby="logout-dialog-description"
+      >
+        <DialogTitle id="logout-dialog-title">{"Confirm Logout"}</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="logout-dialog-description">
+            Are you sure you want to log out? Any unsaved changes may be lost.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenLogoutConfirm(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleLogout} color="error" variant="contained" autoFocus>
+            Logout
+          </Button>
+        </DialogActions>
+      </Dialog>
     </React.Fragment>
   );
 }

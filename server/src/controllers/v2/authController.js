@@ -27,8 +27,8 @@ export const login = async (req, res, next) => {
           return next(new AppError('Invalid Active Directory credentials. Please check your email and password.', 401));
         }
 
-        // Step 2: Check if employee exists in database
-        const employee = await Employee.findOne({ where: { email } });
+        // Step 2: Check if employee exists and is active in the portal database
+        const employee = await Employee.findOne({ where: { email, isActive: true } });
 
         if (!employee) {
           return next(
@@ -86,17 +86,14 @@ export const login = async (req, res, next) => {
         });
       } catch (ldapError) {
         console.error('LDAP Auth Error:', ldapError);
-        // Check for specific LDAP errors
-        let errorMessage = 'Unable to authenticate with Active Directory. Please try again or contact IT support.';
+        // Map LDAP errors to user-facing messages — keep credential failures generic
+        // to prevent username enumeration (never distinguish "user not found" from "wrong password")
+        let errorMessage = 'Invalid Active Directory credentials. Please check your email and password.';
 
         if (ldapError.message?.includes('timeout') || ldapError.message?.includes('Connection timeout')) {
-          errorMessage = 'Active Directory login is currently unavailable. Please try using Local Account login or contact IT support.';
+          errorMessage = 'Active Directory server is currently unreachable. Please try Local Account login or contact IT support.';
         } else if (ldapError.message?.includes('ECONNREFUSED') || ldapError.message?.includes('ENOTFOUND')) {
-          errorMessage = 'Active Directory server is not reachable. Please try using Local Account login or contact IT support.';
-        } else if (ldapError.message?.includes('Invalid LDAP credentials') || ldapError.message?.includes('Invalid credentials')) {
-          errorMessage = 'Invalid Active Directory credentials. Please check your email and password.';
-        } else if (ldapError.message?.includes('User not found')) {
-          errorMessage = 'User not found in Active Directory. Please check your email address.';
+          errorMessage = 'Active Directory server is not reachable. Please try Local Account login or contact IT support.';
         }
 
         return next(new AppError(errorMessage, 401));
