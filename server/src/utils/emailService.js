@@ -1197,10 +1197,6 @@ This is an automated message from the HR Bonus Portal. Please do not reply to th
   }
 };
 
-// Maintain backward compatibility
-export const sendBonusRejectionEmail = sendBonusRejectionEmail;
-
-
 export default {
   sendBonusRejectionEmail,
   sendNewBonusRecordEmail,
