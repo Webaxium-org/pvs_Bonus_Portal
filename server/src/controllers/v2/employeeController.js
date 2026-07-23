@@ -536,12 +536,12 @@ export const bulkCreateEmployees = async (req, res, next) => {
     const invalidEmployees = [];
     for (let i = 0; i < employees.length; i++) {
       const emp = employees[i];
-      if (!emp.employeeId || !emp.fullName) {
+      if (!emp.employeeId || !emp.fullName || !emp.email) {
         invalidEmployees.push({
           index: i + 1,
           employeeId: emp.employeeId || "N/A",
           employeeName: emp.fullName || "N/A",
-          reason: "Missing required fields (Employee Number, Full Name)",
+          reason: "Missing required fields (Employee Number, Full Name, Email)",
         });
       }
     }
@@ -602,7 +602,7 @@ export const bulkCreateEmployees = async (req, res, next) => {
           ...addressFields,
           ...reportingFields,
           password: hashedPassword,
-          email: employeeData.email || `${employeeData.employeeId}@no-email.com`,
+          email: employeeData.email,
         });
 
         createdEmployees.push(created);
