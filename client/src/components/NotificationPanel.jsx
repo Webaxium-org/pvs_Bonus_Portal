@@ -260,6 +260,7 @@ export const ResubmitBonusModal = ({ open, onClose, notification, onSuccess }) =
               autoFocus
               fullWidth
               type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
               label="Revised 2025 Bonus ($)"
               value={newBonus}
               onChange={(e) => setNewBonus(e.target.value)}

@@ -622,6 +622,7 @@ const Bonuses = () => {
                 label="Bonus Amount for 2025"
                 fullWidth
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={bonusAmount}
                 onChange={(e) => setBonusAmount(e.target.value)}
                 placeholder="Enter bonus amount"

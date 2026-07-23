@@ -12,8 +12,10 @@ import {
   Grid,
   MenuItem,
   Autocomplete,
+  Typography,
 } from "@mui/material";
 import api from "../../utils/api";
+import ConfirmDialog from "./ConfirmDialog";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -38,6 +40,8 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
     lastHireDate: "",
     state: "",
     isActive: true,
+    supervisor: "",
+    supervisorName: "",
     level1Approver: "",
     level1ApproverName: "",
     level2Approver: "",
@@ -52,6 +56,9 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [employees, setEmployees] = useState([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const employeesWithEmail = employees.filter((emp) => emp.email && emp.email.trim() !== "");
 
   // Fetch employees for approver dropdowns
   useEffect(() => {
@@ -90,6 +97,8 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
         lastHireDate: employee.lastHireDate || "",
         state: employee.address?.state || "",
         isActive: employee.isActive !== undefined ? employee.isActive : true,
+        supervisor: employee.supervisorId || "",
+        supervisorName: employee.supervisorName || "",
         level1Approver: employee.level1ApproverId || "",
         level1ApproverName: employee.level1ApproverName || "",
         level2Approver: employee.level2ApproverId || "",
@@ -150,6 +159,8 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
         bonus2024: formData.bonus2024 ? parseFloat(formData.bonus2024) : 0,
         lastHireDate: formData.lastHireDate || null,
         isActive: formData.isActive,
+        supervisorId: formData.supervisor || null,
+        supervisorName: formData.supervisorName || null,
         level1ApproverId: formData.level1Approver || null,
         level1ApproverName: formData.level1ApproverName || null,
         level2ApproverId: formData.level2Approver || null,
@@ -186,6 +197,8 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
         lastHireDate: "",
         state: "",
         isActive: true,
+        supervisor: "",
+        supervisorName: "",
         level1Approver: "",
         level1ApproverName: "",
         level2Approver: "",
@@ -230,6 +243,8 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
         lastHireDate: "",
         state: "",
         isActive: true,
+        supervisor: "",
+        supervisorName: "",
         level1Approver: "",
         level1ApproverName: "",
         level2Approver: "",
@@ -243,6 +258,21 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
       });
       setError("");
       onClose();
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/v2/employees/${employee.id}`);
+      setDeleteConfirmOpen(false);
+      onClose();
+      if (onEmployeeUpdated) onEmployeeUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete employee");
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -408,6 +438,7 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
                 name="annualSalary"
                 label="Annual Salary"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.annualSalary}
                 onChange={handleChange}
                 disabled={loading}
@@ -420,6 +451,7 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
                 name="hourlyPayRate"
                 label="Hourly Pay Rate"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.hourlyPayRate}
                 onChange={handleChange}
                 disabled={loading}
@@ -432,6 +464,7 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
                 name="bonus2024"
                 label="2024 Bonus"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.bonus2024}
                 onChange={handleChange}
                 disabled={loading}
@@ -461,6 +494,35 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
                 value={formData.state}
                 onChange={handleChange}
                 disabled={loading}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={4} width={'250px'}>
+              <Autocomplete
+                options={employeesWithEmail}
+                getOptionLabel={(option) => option.fullName || ""}
+                value={employeesWithEmail.find(emp => emp.id === formData.supervisor) || null}
+                onChange={(event, newValue) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    supervisor: newValue?.id || "",
+                    supervisorName: newValue ? newValue.fullName : "",
+                  }));
+                }}
+                disabled={loading}
+                fullWidth
+                sx={{ width: '100%' }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Supervisor"
+                    placeholder="Search supervisor..."
+                  />
+                )}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                ListboxProps={{
+                  style: { maxHeight: 200 }
+                }}
               />
             </Grid>
 
@@ -626,14 +688,35 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
           </Grid>
         </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={loading}>
-          Cancel
+      <DialogActions sx={{ justifyContent: "space-between" }}>
+        <Button
+          onClick={() => setDeleteConfirmOpen(true)}
+          color="error"
+          disabled={loading || deleteLoading}
+        >
+          Delete Employee
         </Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={loading}>
-          {loading ? "Updating..." : "Update Employee"}
-        </Button>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Button onClick={handleClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} variant="contained" disabled={loading}>
+            {loading ? "Updating..." : "Update Employee"}
+          </Button>
+        </Box>
       </DialogActions>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete Employee"
+        message={`Are you sure you want to delete ${employee?.fullName}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        loading={deleteLoading}
+      />
     </Dialog>
   );
 };

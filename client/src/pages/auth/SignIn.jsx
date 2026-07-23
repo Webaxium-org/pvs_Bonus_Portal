@@ -23,11 +23,19 @@ import {
 } from "../../store/slices/userSlice";
 import api from "../../utils/api";
 import truckImage from "../../assets/pvs-truck.png";
-import logo from "../../assets/logo_black.png";
+import logo from "../../assets/logo.png";
+import logoDark from "../../assets/logo_black.png";
+import { useColorScheme } from "@mui/material/styles";
 
 const SignIn = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { mode, systemMode } = useColorScheme();
+
+  // Resolve system vs user theme preference
+  const resolvedMode = (mode === 'system' ? systemMode : mode) || 'light';
+  // White logo for dark mode, dark logo for light mode
+  const currentLogo = resolvedMode === 'dark' ? logo : logoDark;
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -173,7 +181,7 @@ const SignIn = () => {
           <Box sx={{ mb: 6, textAlign: "center" }}>
             <Box
               component="img"
-              src={logo}
+              src={currentLogo}
               alt="PVS Logo"
               sx={{ height: 60, mb: 3 }}
             />

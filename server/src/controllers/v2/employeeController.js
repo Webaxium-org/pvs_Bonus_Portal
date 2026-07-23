@@ -2,7 +2,14 @@ import { getEmployee as getEmployeeModel } from "../../models/sql/Employee.js";
 import AppError from "../../utils/appError.js";
 import bcrypt from "bcryptjs";
 import { Op } from "sequelize";
-import { sendBonusRejectionEmail } from "../../utils/emailService.js";
+import {
+  sendBonusRejectionEmail,
+  sendNewBonusRecordEmail,
+  sendBonusResubmittedEmail,
+  sendFinalApprovalEmail,
+  sendBonusModifiedEmail,
+  sendBonusModifiedDownstreamEmail
+} from "../../utils/emailService.js";
 import { createNotification, markNotificationRead } from "./notificationController.js";
 
 const PROTECTED_EMAILS = [
@@ -151,6 +158,11 @@ export const createEmployee = async (req, res, next) => {
       req.body.addressZipCode = req.body.address.zipCode;
       req.body.addressCountry = req.body.address.country || "USA";
       delete req.body.address;
+    }
+
+    // SQL Server strictly enforces NOT NULL for email
+    if (!req.body.email) {
+      req.body.email = `${req.body.employeeId}@no-email.com`;
     }
 
     const employee = await Employee.create(req.body);
@@ -590,6 +602,7 @@ export const bulkCreateEmployees = async (req, res, next) => {
           ...addressFields,
           ...reportingFields,
           password: hashedPassword,
+          email: employeeData.email || `${employeeData.employeeId}@no-email.com`,
         });
 
         createdEmployees.push(created);

@@ -151,6 +151,7 @@ const EditEmployeeBonusModal = ({ open, onClose, onEmployeeUpdated, employee }) 
                 name="bonus2025"
                 label="2025 Bonus"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.bonus2025}
                 onChange={(e) =>
                   setFormData({ ...formData, bonus2025: e.target.value })

@@ -16,7 +16,7 @@ export const initEmployeeModel = (sequelize) => {
   employeeId: {
     type: DataTypes.STRING(50),
     allowNull: false,
-    unique: true,
+    // unique: true, // Removed - handled by index instead to avoid SQL Server ALTER COLUMN syntax error
   },
   fullName: {
     type: DataTypes.STRING(200),

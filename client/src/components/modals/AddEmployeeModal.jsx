@@ -440,6 +440,7 @@ const AddEmployeeModal = ({ open, onClose, onEmployeeAdded }) => {
                 name="annualSalary"
                 label="Annual Salary"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.annualSalary}
                 onChange={handleChange}
                 disabled={loading}
@@ -451,6 +452,7 @@ const AddEmployeeModal = ({ open, onClose, onEmployeeAdded }) => {
                 name="hourlyPayRate"
                 label="Hourly Pay Rate"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.hourlyPayRate}
                 onChange={handleChange}
                 disabled={loading}
@@ -462,6 +464,7 @@ const AddEmployeeModal = ({ open, onClose, onEmployeeAdded }) => {
                 name="bonus2024"
                 label="2024 Bonus"
                 type="number"
+                onKeyDown={(e) => ["e", "E", "+", "-"].includes(e.key) && e.preventDefault()}
                 value={formData.bonus2024}
                 onChange={handleChange}
                 disabled={loading}

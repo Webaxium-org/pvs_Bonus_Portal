@@ -14,6 +14,8 @@ import {
   LinearProgress,
   Button,
   Snackbar,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -26,6 +28,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import useDashboardStats from "../../hooks/useDashboardStats";
 import api from "../../utils/api";
 import EditEmployeeBonusModal from "../../components/modals/EditEmployeeBonusModal";
+import ConfirmDialog from "../../components/modals/ConfirmDialog";
 
 const HRDashboard = ({ user }) => {
   const {
@@ -67,7 +70,7 @@ const HRDashboard = ({ user }) => {
   const handleUKGExportClick = () => {
     if (!ukgExportEnabled) {
       setSnackbarMessage(
-        "This export only works after adding bonuses and approving all levels (Level 1-5) for all employees with bonuses."
+        "No employees have completed all approval levels yet. The export will be available once at least one employee has all approvals done."
       );
       setSnackbarOpen(true);
       return;
@@ -124,8 +127,10 @@ const HRDashboard = ({ user }) => {
       setError("");
       try {
         const response = await api.get("/v2/employees");
-        setEmployees(response.data.data);
-        setFilteredEmployees(response.data.data);
+        // Filter out HR accounts from all displays and calculations
+        const filteredData = response.data.data.filter(emp => emp.role !== "hr");
+        setEmployees(filteredData);
+        setFilteredEmployees(filteredData);
 
         // Check UKG export status
         checkUKGExportStatus();
@@ -210,8 +215,9 @@ const HRDashboard = ({ user }) => {
       setError("");
       try {
         const response = await api.get("/v2/employees");
-        setEmployees(response.data.data);
-        setFilteredEmployees(response.data.data);
+        const filteredData = response.data.data.filter(emp => emp.role !== "hr");
+        setEmployees(filteredData);
+        setFilteredEmployees(filteredData);
       } catch (err) {
         setError(
           err.response?.data?.message ||
@@ -457,96 +463,67 @@ const HRDashboard = ({ user }) => {
       field: "level1ApproverName",
       headerName: "Approver 1",
       width: 160,
-      renderCell: (params) => {
-        const approverName = params.value || "Not Assigned";
+      valueGetter: (value) => value?.trim() || "Not Assigned",
+      cellClassName: (params) => {
         const status = params.row.approvalStatus?.level1?.status;
-        const color =
-          status === "approved"
-            ? "success.main"
-            : status === "rejected"
-              ? "error.main"
-              : "text.primary";
-        return <Typography sx={{ color, mt: 1 }}>{approverName}</Typography>;
+        return status === "approved" ? "cell-approved" : status === "rejected" ? "cell-rejected" : "";
       },
     },
     {
       field: "level2ApproverName",
       headerName: "Approver 2",
       width: 160,
-      renderCell: (params) => {
-        const approverName = params.value || "Not Assigned";
+      valueGetter: (value) => value?.trim() || "Not Assigned",
+      cellClassName: (params) => {
         const status = params.row.approvalStatus?.level2?.status;
-        const color =
-          status === "approved"
-            ? "success.main"
-            : status === "rejected"
-              ? "error.main"
-              : "text.primary";
-        return <Typography sx={{ color, mt: 1 }}>{approverName}</Typography>;
+        return status === "approved" ? "cell-approved" : status === "rejected" ? "cell-rejected" : "";
       },
     },
     {
       field: "level3ApproverName",
       headerName: "Approver 3",
       width: 160,
-      renderCell: (params) => {
-        const approverName = params.value || "Not Assigned";
+      valueGetter: (value) => value?.trim() || "Not Assigned",
+      cellClassName: (params) => {
         const status = params.row.approvalStatus?.level3?.status;
-        const color =
-          status === "approved"
-            ? "success.main"
-            : status === "rejected"
-              ? "error.main"
-              : "text.primary";
-        return <Typography sx={{ color, mt: 1 }}>{approverName}</Typography>;
+        return status === "approved" ? "cell-approved" : status === "rejected" ? "cell-rejected" : "";
       },
     },
     {
       field: "level4ApproverName",
       headerName: "Approver 4",
       width: 160,
-      renderCell: (params) => {
-        const approverName = params.value || "Not Assigned";
+      valueGetter: (value) => value?.trim() || "Not Assigned",
+      cellClassName: (params) => {
         const status = params.row.approvalStatus?.level4?.status;
-        const color =
-          status === "approved"
-            ? "success.main"
-            : status === "rejected"
-              ? "error.main"
-              : "text.primary";
-        return <Typography sx={{ color, mt: 1 }}>{approverName}</Typography>;
+        return status === "approved" ? "cell-approved" : status === "rejected" ? "cell-rejected" : "";
       },
     },
     {
       field: "level5ApproverName",
       headerName: "Approver 5",
       width: 160,
-      renderCell: (params) => {
-        const approverName = params.value || "Not Assigned";
+      valueGetter: (value) => value?.trim() || "Not Assigned",
+      cellClassName: (params) => {
         const status = params.row.approvalStatus?.level5?.status;
-        const color =
-          status === "approved"
-            ? "success.main"
-            : status === "rejected"
-              ? "error.main"
-              : "text.primary";
-        return <Typography sx={{ color, mt: 1 }}>{approverName}</Typography>;
+        return status === "approved" ? "cell-approved" : status === "rejected" ? "cell-rejected" : "";
       },
     },
     {
       field: "actions",
       headerName: "Actions",
-      width: 120,
+      width: 80,
       sortable: false,
       renderCell: (params) => (
-        <Button
-          startIcon={<EditIcon />}
-          color="primary"
-          onClick={() => handleEditClick(params.row)}
-          size="small"
-        >
-          Edit
-        </Button>
+        <Tooltip title="Edit Bonus">
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={() => handleEditClick(params.row)}
+          >
+            <EditIcon />
+          </IconButton>
+        </Tooltip>
       ),
     },
   ];
@@ -581,8 +558,8 @@ const HRDashboard = ({ user }) => {
               },
             }}
           >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 1, sm: 2 } }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Box
                     sx={{
@@ -659,8 +636,8 @@ const HRDashboard = ({ user }) => {
               },
             }}
           >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 1, sm: 2 } }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Box
                     sx={{
@@ -737,8 +714,8 @@ const HRDashboard = ({ user }) => {
               },
             }}
           >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 1, sm: 2 } }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Box
                     sx={{
@@ -815,8 +792,8 @@ const HRDashboard = ({ user }) => {
               },
             }}
           >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 1, sm: 2 } }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Box
                     sx={{
@@ -1038,7 +1015,17 @@ const HRDashboard = ({ user }) => {
           </Box>
         </Box>
 
-        <Box sx={{ height: 600, width: "100%" }}>
+        <Box
+          sx={{ height: { xs: 400, sm: 500, md: 600 }, width: "100%" }}
+          onCopy={(e) => {
+            const selection = window.getSelection();
+            const text = selection.toString().trim();
+            if (text) {
+              e.preventDefault();
+              e.clipboardData.setData('text/plain', text);
+            }
+          }}
+        >
           <DataGrid
             rows={filteredEmployees}
             columns={columns}
@@ -1052,8 +1039,11 @@ const HRDashboard = ({ user }) => {
             }}
             pageSizeOptions={[10, 25, 50, 100, 150, 200]}
             disableRowSelectionOnClick
+            disableVirtualization
+            columnBufferPx={3000}
             sx={{
               border: 0,
+              backgroundColor: "background.paper",
               "& .MuiDataGrid-columnHeaders": {
                 backgroundColor: "background.paper",
                 borderBottom: "2px solid",
@@ -1062,6 +1052,13 @@ const HRDashboard = ({ user }) => {
               "& .MuiDataGrid-cell": {
                 borderBottom: "1px solid",
                 borderColor: "divider",
+                backgroundColor: "background.paper",
+              },
+              "& .cell-approved": {
+                color: "#4caf50",
+              },
+              "& .cell-rejected": {
+                color: "#f44336",
               },
             }}
           />
@@ -1072,7 +1069,7 @@ const HRDashboard = ({ user }) => {
       <Box
         sx={{
           display: "flex",
-          flexDirection: { xs: "column !important", xl: "row !important" },
+          flexDirection: { xs: "column", xl: "row" },
           gap: 3,
           alignItems: "stretch",
         }}
@@ -1131,9 +1128,9 @@ const HRDashboard = ({ user }) => {
           sx={{
             display: "flex",
             flexDirection: {
-              xs: "column !important",
-              md: "row !important",
-              xl: "column !important",
+              xs: "column",
+              md: "row",
+              xl: "column",
             },
             gap: 3,
           }}
@@ -1188,7 +1185,6 @@ const HRDashboard = ({ user }) => {
                       highlightScope: { faded: "global", highlighted: "item" },
                     },
                   ]}
-                  width={380}
                   height={300}
                   slotProps={{
                     legend: {
