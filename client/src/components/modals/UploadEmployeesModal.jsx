@@ -167,22 +167,59 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
         return `${firstName} ${lastName}`.trim();
       };
 
-      // Helper function to parse date (Excel stores dates as serial numbers)
+      // Helper function to parse date — returns "YYYY-MM-DD" string for SQL Server
       const parseDate = (dateValue) => {
-        if (!dateValue) return null;
+        if (dateValue === null || dateValue === undefined || dateValue === "") return null;
 
-        // Check if it's an Excel serial date (number)
+        // Excel serial date (number) — use UTC to avoid timezone shift
         if (typeof dateValue === "number") {
-          // Excel date serial number (days since 1900-01-01, with 1900-01-01 = 1)
-          const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
           const msPerDay = 24 * 60 * 60 * 1000;
-          const date = new Date(excelEpoch.getTime() + dateValue * msPerDay);
-          return date;
+          const date = new Date(Date.UTC(1899, 11, 30) + dateValue * msPerDay);
+          if (isNaN(date.getTime())) return null;
+          return date.toISOString().split("T")[0];
         }
 
-        // Try parsing as regular date string
-        const date = new Date(dateValue);
-        return isNaN(date.getTime()) ? null : date;
+        // Already a JS Date object (xlsx cellDates:true mode)
+        if (dateValue instanceof Date) {
+          if (isNaN(dateValue.getTime())) return null;
+          return dateValue.toISOString().split("T")[0];
+        }
+
+        const str = String(dateValue).trim();
+
+        // ISO format: YYYY-MM-DD or YYYY/MM/DD
+        const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+        if (isoMatch) {
+          const [, y, m, d] = isoMatch;
+          const date = new Date(Date.UTC(+y, +m - 1, +d));
+          if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
+        }
+
+        // MM/DD/YYYY or DD/MM/YYYY (try MM/DD first — if month > 12 swap)
+        const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (slashMatch) {
+          const [, a, b, y] = slashMatch;
+          const month = +a <= 12 ? +a : +b;
+          const day = +a <= 12 ? +b : +a;
+          const date = new Date(Date.UTC(+y, month - 1, day));
+          if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
+        }
+
+        // MM-DD-YYYY or DD-MM-YYYY with dashes
+        const dashMatch = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        if (dashMatch) {
+          const [, a, b, y] = dashMatch;
+          const month = +a <= 12 ? +a : +b;
+          const day = +a <= 12 ? +b : +a;
+          const date = new Date(Date.UTC(+y, month - 1, day));
+          if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
+        }
+
+        // Last resort generic parse
+        const date = new Date(str);
+        if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
+
+        return null;
       };
 
       // Helper function to parse number

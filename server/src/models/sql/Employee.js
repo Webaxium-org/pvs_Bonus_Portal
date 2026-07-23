@@ -75,11 +75,11 @@ export const initEmployeeModel = (sequelize) => {
     defaultValue: 'employee',
   },
   hireDate: {
-    type: 'DATETIME2',
+    type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
   },
   lastHireDate: {
-    type: 'DATETIME2',
+    type: DataTypes.DATE,
     allowNull: true,
   },
   employeeType: {
@@ -248,14 +248,6 @@ export const initEmployeeModel = (sequelize) => {
         this.setDataValue('approvalStatus', typeof value === 'string' ? value : JSON.stringify(value));
       }
     },
-  },
-  createdAt: {
-    type: 'DATETIME2',
-    allowNull: true,
-  },
-  updatedAt: {
-    type: 'DATETIME2',
-    allowNull: true,
   },
   isActive: {
     type: DataTypes.BOOLEAN,
