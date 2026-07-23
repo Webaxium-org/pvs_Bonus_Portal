@@ -12,6 +12,7 @@ const getSQLConfig = () => {
       encrypt: process.env.SQL_SERVER_ENCRYPT === 'true',
       trustServerCertificate: process.env.SQL_SERVER_TRUST_CERT !== 'false',
       enableArithAbort: true,
+      requestTimeout: 60000, // Increase timeout to 60 seconds
     },
     authentication: {
       type: 'default',
