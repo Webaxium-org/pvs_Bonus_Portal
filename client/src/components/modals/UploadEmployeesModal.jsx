@@ -490,20 +490,27 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
 
       setUploadProgress(100);
 
-      // Show result modal instead of inline alert
-      setResultType(type);
-      setResultMessage(message);
-      setResultDetails(data);
-      setShowResultModal(true);
-
-      // Reset form
-      setTimeout(() => {
-        setFile(null);
-        setUploadProgress(0);
-        if (type === "success") {
+      if (type === "success") {
+        setSuccessMessage(message);
+        setTimeout(() => {
+          setFile(null);
+          setUploadProgress(0);
           onEmployeesUploaded();
-        }
-      }, 1500);
+          // Reset success message after a brief delay
+          setTimeout(() => setSuccessMessage(""), 500);
+        }, 1500);
+      } else {
+        // Show result modal for warnings/errors (e.g. duplicates)
+        setResultType(type);
+        setResultMessage(message);
+        setResultDetails(data);
+        setShowResultModal(true);
+
+        setTimeout(() => {
+          setFile(null);
+          setUploadProgress(0);
+        }, 1500);
+      }
 
     } catch (err) {
       clearInterval(initialInterval);
@@ -592,6 +599,11 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
           {error && (
             <Alert severity="error" sx={{ mb: 2, whiteSpace: "pre-wrap" }}>
               {error}
+            </Alert>
+          )}
+          {successMessage && (
+            <Alert severity="success" sx={{ mb: 2, whiteSpace: "pre-wrap" }}>
+              {successMessage}
             </Alert>
           )}
 
@@ -736,7 +748,10 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
         </DialogContent>
         <DialogActions>
           <Button
-            onClick={() => setShowResultModal(false)}
+            onClick={() => {
+              setShowResultModal(false);
+              onEmployeesUploaded();
+            }}
             variant="contained"
             sx={{ '&:hover': { transform: 'none' } }}
           >

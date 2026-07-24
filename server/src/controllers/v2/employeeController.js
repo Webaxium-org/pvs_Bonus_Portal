@@ -160,11 +160,6 @@ export const createEmployee = async (req, res, next) => {
       delete req.body.address;
     }
 
-    // SQL Server strictly enforces NOT NULL for email
-    if (!req.body.email) {
-      req.body.email = `${req.body.employeeId}@no-email.com`;
-    }
-
     const employee = await Employee.create(req.body);
 
     // Remove password from response
@@ -532,33 +527,29 @@ export const bulkCreateEmployees = async (req, res, next) => {
       return next(new AppError("Please provide an array of employees", 400));
     }
 
-    // Validate required fields for each employee
-    const invalidEmployees = [];
+    const validEmployees = [];
+    const skippedDuplicates = [];
+
+    // Filter and validate required fields
     for (let i = 0; i < employees.length; i++) {
       const emp = employees[i];
+      
       if (!emp.employeeId || !emp.fullName || !emp.email) {
-        invalidEmployees.push({
-          index: i + 1,
+        skippedDuplicates.push({
           employeeId: emp.employeeId || "N/A",
           employeeName: emp.fullName || "N/A",
+          email: emp.email || "N/A",
           reason: "Missing required fields (Employee Number, Full Name, Email)",
         });
+      } else {
+        validEmployees.push(emp);
       }
     }
 
-    if (invalidEmployees.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Some employees have validation errors",
-        errors: invalidEmployees,
-      });
-    }
-
     const createdEmployees = [];
-    const skippedDuplicates = [];
 
     // Process each employee
-    for (const emp of employees) {
+    for (const emp of validEmployees) {
       try {
         // Hash password
         const salt = await bcrypt.genSalt(10);
@@ -780,7 +771,7 @@ export const bulkCreateEmployees = async (req, res, next) => {
     const totalRolesSet = approverRoleCount + supervisorRoleCount;
     const message =
       skippedDuplicates.length > 0
-        ? `Partially successful: ${createdEmployees.length} employees created, ${skippedDuplicates.length} skipped (already exist). Synced ${reportingMapped} approver relationships. Set ${totalRolesSet} employees as approvers/supervisors.`
+        ? `Partially successful: ${createdEmployees.length} employees created, ${skippedDuplicates.length} skipped (missing fields or already exist). Synced ${reportingMapped} approver relationships. Set ${totalRolesSet} employees as approvers/supervisors.`
         : `Successfully created ${createdEmployees.length} employees. Synced ${reportingMapped} approver relationships. Set ${totalRolesSet} employees as approvers/supervisors.`;
 
     res.status(statusCode).json({

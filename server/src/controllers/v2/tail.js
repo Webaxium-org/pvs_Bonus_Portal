@@ -84,10 +84,8 @@ export const bulkApproveAll = async (req, res, next) => {
         };
 
         // Add to merit history
-        const history = employee.meritHistory || [];
-        const meritValue = employee.salaryType === "Hourly"
-          ? employee.meritIncreaseDollar
-          : employee.meritIncreasePercentage;
+        const history = employee.bonusHistory || [];
+        const bonusValue = employee.bonus2025;
 
         history.push({
           timestamp: new Date(),
@@ -98,7 +96,7 @@ export const bulkApproveAll = async (req, res, next) => {
             name: approverDetails?.fullName || "Unknown",
             employeeId: approverDetails?.employeeId || "N/A",
           },
-          meritValue: meritValue,
+          bonusValue: bonusValue,
           salaryType: employee.salaryType,
           comments: comments || null,
           bulkApproval: true,
@@ -106,7 +104,7 @@ export const bulkApproveAll = async (req, res, next) => {
 
         // Update employee instance and save (use .save() to trigger setters properly)
         employee.approvalStatus = existingStatus;
-        employee.meritHistory = history;
+        employee.bonusHistory = history;
         await employee.save();
         approvedCount++;
       }
@@ -114,7 +112,7 @@ export const bulkApproveAll = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `Successfully approved merits for ${approvedCount} employees`,
+      message: `Successfully approved bonuses for ${approvedCount} employees`,
       approvedCount: approvedCount,
     });
   } catch (error) {
@@ -133,26 +131,25 @@ export const checkAllApprovalsCompleted = async (req, res, next) => {
       where: { isActive: true },
     });
 
-    const employeesWithMerits = allActiveEmployees.filter(
+    const employeesWithBonuses = allActiveEmployees.filter(
       (emp) =>
         emp.approvalStatus?.enteredBy ||
-        parseFloat(emp.meritIncreasePercentage) > 0 ||
-        parseFloat(emp.meritIncreaseDollar) > 0
+        parseFloat(emp.bonus2025) > 0
     );
 
-    if (employeesWithMerits.length === 0) {
+    if (employeesWithBonuses.length === 0) {
       return res.status(200).json({
         success: true,
         allApprovalsCompleted: false,
         readyCount: 0,
-        totalWithMerits: 0,
-        message: "No employees with merits found. Please add merits before exporting.",
+        totalWithBonuses: 0,
+        message: "No employees with bonuses found. Please add bonuses before exporting.",
       });
     }
 
     let readyCount = 0;
 
-    for (const employee of employeesWithMerits) {
+    for (const employee of employeesWithBonuses) {
       const approvalStatus = employee.approvalStatus || {};
 
       if (!approvalStatus.submittedForApproval) continue;
@@ -177,7 +174,7 @@ export const checkAllApprovalsCompleted = async (req, res, next) => {
       success: true,
       allApprovalsCompleted: readyCount > 0,
       readyCount,
-      totalWithMerits: employeesWithMerits.length,
+      totalWithBonuses: employeesWithBonuses.length,
       message:
         readyCount > 0
           ? `${readyCount} employee(s) ready for export.`
@@ -195,7 +192,7 @@ export const resubmitAndApprove = async (req, res, next) => {
   try {
     const Employee = getEmployeeModel();
     const { id } = req.params;
-    const { meritIncreasePercentage, meritIncreaseDollar, comments, notificationId } = req.body || {};
+    const { bonus2025, comments, notificationId } = req.body || {};
     const actorId =
       req.user?.userId ||
       req.user?.id ||
@@ -208,22 +205,16 @@ export const resubmitAndApprove = async (req, res, next) => {
 
     // Validate that at least one merit value is provided
     if (
-      (meritIncreasePercentage === undefined || meritIncreasePercentage === null) &&
-      (meritIncreaseDollar === undefined || meritIncreaseDollar === null)
+      (bonus2025 === undefined || bonus2025 === null) 
     ) {
-      return next(new AppError("Merit increase (percentage or dollar amount) is required", 400));
+      return next(new AppError("Bonus amount is required", 400));
     }
 
     // Validate non-negative values
     if (
-      (meritIncreasePercentage !== undefined &&
-        meritIncreasePercentage !== null &&
-        parseFloat(meritIncreasePercentage) < 0) ||
-      (meritIncreaseDollar !== undefined &&
-        meritIncreaseDollar !== null &&
-        parseFloat(meritIncreaseDollar) < 0)
+      ((bonus2025 !== undefined && bonus2025 !== null && parseFloat(bonus2025) < 0)
     ) {
-      return next(new AppError("Merit increase cannot be negative", 400));
+      return next(new AppError("Bonus amount cannot be negative", 400));
     }
 
     const employee = await Employee.findByPk(id);
@@ -254,25 +245,9 @@ export const resubmitAndApprove = async (req, res, next) => {
     }
 
     // â”€â”€ Step 1: Calculate and update the merit amount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    let newAnnualSalary = 0;
-    let newHourlyRate = 0;
-    let finalMeritPercentage = 0;
-    let finalMeritDollar = 0;
-
-    // Determine employee type and calculate accordingly
-    if (employee.salaryType === "Hourly") {
-      // For hourly employees, use dollar increase
-      if (meritIncreaseDollar !== undefined && meritIncreaseDollar !== null) {
-        finalMeritDollar = parseFloat(meritIncreaseDollar);
-        newHourlyRate = (parseFloat(employee.hourlyPayRate) || 0) + finalMeritDollar;
-      }
-    } else {
-      // For salaried employees (Salary or Salaried), use percentage increase
-      if (meritIncreasePercentage !== undefined && meritIncreasePercentage !== null) {
-        finalMeritPercentage = parseFloat(meritIncreasePercentage);
-        const currentSalary = parseFloat(employee.annualSalary) || 0;
-        newAnnualSalary = currentSalary * (1 + finalMeritPercentage / 100);
-      }
+    let finalBonus = 0;
+    if (bonus2025 !== undefined && bonus2025 !== null) {
+      finalBonus = parseFloat(bonus2025);
     }
 
     // Get actor details for history logging
@@ -281,8 +256,7 @@ export const resubmitAndApprove = async (req, res, next) => {
     });
 
     // Store old values for history
-    const oldMeritPercentage = employee.meritIncreasePercentage;
-    const oldMeritDollar = employee.meritIncreaseDollar;
+    const oldBonus = employee.bonus2025;
 
     // Build fresh approval status: submitted=true, all levels reset to pending
     const newStatus = {
@@ -333,9 +307,9 @@ export const resubmitAndApprove = async (req, res, next) => {
     }
 
     // Add to merit history
-    const history = employee.meritHistory || [];
-    const oldValue = employee.salaryType === "Hourly" ? oldMeritDollar : oldMeritPercentage;
-    const newValue = employee.salaryType === "Hourly" ? finalMeritDollar : finalMeritPercentage;
+    const history = employee.bonusHistory || [];
+    const oldValue = oldBonus;
+    const newValue = finalBonus;
 
     history.push({
       timestamp: new Date(),
@@ -353,12 +327,9 @@ export const resubmitAndApprove = async (req, res, next) => {
     });
 
     // Update employee instance and save (use .save() to trigger setters properly)
-    employee.meritIncreasePercentage = finalMeritPercentage;
-    employee.meritIncreaseDollar = finalMeritDollar;
-    employee.newAnnualSalary = newAnnualSalary;
-    employee.newHourlyRate = newHourlyRate;
+    employee.bonus2025 = finalBonus;
     employee.approvalStatus = newStatus;
-    employee.meritHistory = history;
+    employee.bonusHistory = history;
     await employee.save();
 
     // â”€â”€ Step 3: Mark notification as read â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -372,22 +343,20 @@ export const resubmitAndApprove = async (req, res, next) => {
       const nextApproverDetails = await Employee.findByPk(nextApprover.approverId);
       if (nextApproverDetails?.email) {
         // Format merit display
-        const meritDisplay = employee.salaryType === 'Hourly'
-          ? `$${finalMeritDollar}/hr`
-          : `${finalMeritPercentage}%`;
+        const meritDisplay = `$${finalBonus}`;
 
         // Send notification
         try {
           await createNotification({
             recipientId: nextApprover.approverId,
-            type: 'merit_resubmitted',
-            title: `Merit Resubmitted - Review Required`,
-            message: `Merit for ${employee.fullName} has been resubmitted. Please review.`,
+            type: 'bonus_resubmitted',
+            title: `Bonus Resubmitted - Review Required`,
+            message: `Bonus for ${employee.fullName} has been resubmitted. Please review.`,
             payload: {
               employeeDbId: employee.id,
               employeeId: employee.employeeId,
               employeeName: employee.fullName,
-              meritAmount: meritDisplay,
+              bonusAmount: meritDisplay,
               level: nextApprover.level
             }
           });
@@ -398,12 +367,12 @@ export const resubmitAndApprove = async (req, res, next) => {
 
         // Send email
         try {
-          await sendMeritResubmittedEmail({
+          await sendBonusResubmittedEmail({
             toEmail: nextApproverDetails.email,
             toName: nextApproverDetails.fullName,
             employeeName: employee.fullName,
             employeeId: employee.employeeId,
-            newMeritAmount: meritDisplay,
+            newBonusAmount: meritDisplay,
             resubmittedBy: actorDetails?.fullName || 'Unknown',
             approverLevel: nextApprover.level
           });
@@ -424,14 +393,14 @@ export const resubmitAndApprove = async (req, res, next) => {
     const hasNextLevel = !!employee[`level${nextPendingLevel}ApproverId`];
 
     // Determine the merit value for response
-    const newMerit = employee.salaryType === "Hourly" ? finalMeritDollar : finalMeritPercentage;
+    const newBonus = finalBonus;
 
     res.status(200).json({
       success: true,
       message: hasNextLevel
-        ? `Merit updated and approved at ${levelLabel} level. Now awaiting Level ${nextPendingLevel} approval.`
-        : `Merit updated and approved by ${levelLabel}. All approvals complete!`,
-      data: { employeeId: employee.employeeId, newMerit, actorLevel, levelLabel },
+        ? `Bonus updated and approved at ${levelLabel} level. Now awaiting Level ${nextPendingLevel} approval.`
+        : `Bonus updated and approved by ${levelLabel}. All approvals complete!`,
+      data: { employeeId: employee.employeeId, newBonus, actorLevel, levelLabel },
     });
   } catch (error) {
     next(error);
@@ -457,8 +426,7 @@ export const exportToUKG = async (req, res, next) => {
 
       const hasMerit =
         approvalStatus.enteredBy ||
-        parseFloat(emp.meritIncreasePercentage) > 0 ||
-        parseFloat(emp.meritIncreaseDollar) > 0;
+        parseFloat(emp.bonus2025) > 0;
 
       if (!hasMerit || !approvalStatus.submittedForApproval) return false;
 
@@ -501,10 +469,8 @@ export const exportToUKG = async (req, res, next) => {
       "Salary or Hourly": emp.salaryType || "",
       "Annual Salary": emp.annualSalary || 0,
       "Hourly Pay Rate": emp.hourlyPayRate || 0,
-      "Merit Increase %": emp.meritIncreasePercentage || 0,
-      "Merit Increase $": emp.meritIncreaseDollar || 0,
-      "New Annual Salary": emp.newAnnualSalary || 0,
-      "New Hourly Rate": emp.newHourlyRate || 0,
+      "Bonus 2024": emp.bonus2024 || 0,
+      "Bonus 2025": emp.bonus2025 || 0,
     }));
 
     // Create workbook and worksheet
@@ -536,11 +502,11 @@ export const exportToUKG = async (req, res, next) => {
 // @desc    Modify merit and approve at current level (keeps higher-level approvals intact)
 // @route   POST /api/v2/employees/:employeeId/modify-and-approve
 // @access  Private (Approver only)
-export const modifyAndApproveMerit = async (req, res, next) => {
+export const modifyAndApproveBonus = async (req, res, next) => {
   try {
     const Employee = getEmployeeModel();
     const { employeeId } = req.params;
-    const { meritIncreasePercentage, meritIncreaseDollar, comments, approverId: bodyApproverId, level } = req.body || {};
+    const { bonus2025, comments, approverId: bodyApproverId, level } = req.body || {};
     const approverId =
       req.user?.userId ||
       req.user?.id ||
@@ -553,11 +519,10 @@ export const modifyAndApproveMerit = async (req, res, next) => {
 
     // Validate that at least one merit value is provided
     if (
-      (meritIncreasePercentage === undefined || meritIncreasePercentage === null) &&
-      (meritIncreaseDollar === undefined || meritIncreaseDollar === null)
+      (bonus2025 === undefined || bonus2025 === null) 
     ) {
       return next(
-        new AppError("Merit increase (percentage or dollar amount) is required", 400)
+        new AppError("Bonus amount is required", 400)
       );
     }
 
@@ -599,47 +564,17 @@ export const modifyAndApproveMerit = async (req, res, next) => {
     }
 
     // Store old values for history
-    const oldMeritPercentage = employee.meritIncreasePercentage;
-    const oldMeritDollar = employee.meritIncreaseDollar;
-
-    // Calculate new merit values
-    let newAnnualSalary = 0;
-    let newHourlyRate = 0;
-    let finalMeritPercentage = 0;
-    let finalMeritDollar = 0;
-
-    if (employee.salaryType === "Hourly") {
-      if (meritIncreaseDollar !== undefined && meritIncreaseDollar !== null) {
-        finalMeritDollar = parseFloat(meritIncreaseDollar);
-        newHourlyRate = (parseFloat(employee.hourlyPayRate) || 0) + finalMeritDollar;
-      }
-    } else {
-      if (meritIncreasePercentage !== undefined && meritIncreasePercentage !== null) {
-        finalMeritPercentage = parseFloat(meritIncreasePercentage);
-        const currentSalary = parseFloat(employee.annualSalary) || 0;
-        newAnnualSalary = currentSalary * (1 + finalMeritPercentage / 100);
-      }
+    const oldBonus = employee.bonus2025;
+    let finalBonus = 0;
+    if (bonus2025 !== undefined && bonus2025 !== null) {
+      finalBonus = parseFloat(bonus2025);
     }
 
     // Check if the merit value is the same as the current value (prevent modifying with same value)
-    if (employee.salaryType === "Hourly") {
-      if (oldMeritDollar !== null && oldMeritDollar !== undefined && parseFloat(oldMeritDollar) === finalMeritDollar) {
-        return next(
-          new AppError(
-            `Merit value is already $${finalMeritDollar}/hr. Please enter a different value to modify.`,
-            400
-          )
-        );
-      }
-    } else {
-      if (oldMeritPercentage !== null && oldMeritPercentage !== undefined && parseFloat(oldMeritPercentage) === finalMeritPercentage) {
-        return next(
-          new AppError(
-            `Merit value is already ${finalMeritPercentage}%. Please enter a different value to modify.`,
-            400
-          )
-        );
-      }
+    if (oldBonus !== null && oldBonus !== undefined && parseFloat(oldBonus) === finalBonus) {
+      return next(
+        new AppError(`Bonus value is already $${finalBonus}. Please enter a different value to modify.`, 400)
+      );
     }
 
     // Update approval status - keep higher-level approvals intact
@@ -659,7 +594,7 @@ export const modifyAndApproveMerit = async (req, res, next) => {
     };
 
     // Add to merit history
-    const history = employee.meritHistory || [];
+    const history = employee.bonusHistory || [];
 
     console.log('ðŸ” [MODIFY-AND-APPROVE DEBUG] Employee:', employee.employeeId, employee.fullName);
     console.log('ðŸ” [MODIFY-AND-APPROVE DEBUG] Approver Level:', approverLevel);
@@ -674,8 +609,8 @@ export const modifyAndApproveMerit = async (req, res, next) => {
         name: approverDetails?.fullName || "Unknown",
         employeeId: approverDetails?.employeeId || "N/A",
       },
-      oldValue: employee.salaryType === "Hourly" ? oldMeritDollar : oldMeritPercentage,
-      newValue: employee.salaryType === "Hourly" ? finalMeritDollar : finalMeritPercentage,
+      oldValue: oldBonus,
+      newValue: finalBonus,
       salaryType: employee.salaryType,
       comments: comments || null,
     });
@@ -683,21 +618,16 @@ export const modifyAndApproveMerit = async (req, res, next) => {
     console.log('ðŸ” [MODIFY-AND-APPROVE DEBUG] Merit history AFTER push:', JSON.stringify(history, null, 2));
 
     // Update employee instance and save (use .save() to trigger setters properly)
-    employee.meritIncreasePercentage = finalMeritPercentage;
-    employee.meritIncreaseDollar = finalMeritDollar;
-    employee.newAnnualSalary = newAnnualSalary;
-    employee.newHourlyRate = newHourlyRate;
+    employee.bonus2025 = finalBonus;
     employee.approvalStatus = existingStatus;
-    employee.meritHistory = history;
+    employee.bonusHistory = history;
 
     console.log('ðŸ” [MODIFY-AND-APPROVE DEBUG] About to save employee...');
     await employee.save();
     console.log('âœ… [MODIFY-AND-APPROVE DEBUG] Employee saved successfully!');
 
     // â”€â”€ Notify next approver about modification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const meritDisplay = employee.salaryType === 'Hourly'
-      ? `$${finalMeritDollar}/hr`
-      : `${finalMeritPercentage}%`;
+    const meritDisplay = `$${finalBonus}`;
 
     const nextApprover = getNextApprovalLevel(employee);
     if (nextApprover) {
@@ -707,14 +637,14 @@ export const modifyAndApproveMerit = async (req, res, next) => {
         try {
           await createNotification({
             recipientId: nextApprover.approverId,
-            type: 'merit_modified',
-            title: `Merit Modified - Review Required`,
-            message: `Merit for ${employee.fullName} has been modified by Level ${approverLevel}. Please review.`,
+            type: 'bonus_modified',
+            title: `Bonus Modified - Review Required`,
+            message: `Bonus for ${employee.fullName} has been modified by Level ${approverLevel}. Please review.`,
             payload: {
               employeeDbId: employee.id,
               employeeId: employee.employeeId,
               employeeName: employee.fullName,
-              meritAmount: meritDisplay,
+              bonusAmount: meritDisplay,
               modifiedBy: approverDetails?.fullName || 'Unknown',
               level: nextApprover.level
             }
@@ -737,7 +667,7 @@ export const modifyAndApproveMerit = async (req, res, next) => {
 
     if (previousActor && previousActor.email) {
       try {
-        await sendMeritModifiedDownstreamEmail({
+        await sendBonusModifiedDownstreamEmail({
           toEmail: previousActor.email,
           toName: previousActor.fullName,
           employeeName: employee.fullName,
@@ -762,7 +692,7 @@ export const modifyAndApproveMerit = async (req, res, next) => {
       ],
     });
 
-    console.log('ðŸ” [MODIFY-AND-APPROVE DEBUG] Updated employee from DB - merit history:', JSON.stringify(updatedEmployee.meritHistory, null, 2));
+    console.log('ðŸ” [MODIFY-AND-APPROVE DEBUG] Updated employee from DB - merit history:', JSON.stringify(updatedEmployee.bonusHistory, null, 2));
 
     res.status(200).json({
       success: true,
@@ -833,19 +763,16 @@ export const deleteAllEmployees = async (req, res, next) => {
 // @desc    Reset all merit data to upload state (clear all merits, approvals, and history)
 // @route   POST /api/v2/employees/reset-merits
 // @access  Private (HR Admin only)
-export const resetMeritData = async (req, res, next) => {
+export const resetBonusData = async (req, res, next) => {
   try {
     const Employee = getEmployeeModel();
 
     // Reset all merit-related fields to their initial state (skip HR role users)
     const [updateCount] = await Employee.update(
       {
-        meritIncreasePercentage: 0,
-        meritIncreaseDollar: 0,
-        newAnnualSalary: 0,
-        newHourlyRate: 0,
+        bonus2025: 0,
         approvalStatus: null,
-        meritHistory: null,
+        bonusHistory: null,
       },
       {
         where: { role: { [Op.ne]: "hr" } },
@@ -854,7 +781,7 @@ export const resetMeritData = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `Successfully reset merit data for ${updateCount} employees. All merit increases, approvals, and history have been cleared.`,
+      message: `Successfully reset bonus data for ${updateCount} employees. All bonuses, approvals, and history have been cleared.`,
       resetCount: updateCount,
     });
   } catch (error) {
@@ -865,7 +792,7 @@ export const resetMeritData = async (req, res, next) => {
 // @desc    Reset supervisor's employees merit data (clear merits, approvals, and history only for their team)
 // @route   POST /api/v2/employees/supervisor/reset-merits
 // @access  Private (Supervisor)
-export const resetSupervisorMeritData = async (req, res, next) => {
+export const resetSupervisorBonusData = async (req, res, next) => {
   try {
     const Employee = getEmployeeModel();
     const supervisorId =
@@ -880,12 +807,9 @@ export const resetSupervisorMeritData = async (req, res, next) => {
 
     const [updateCount] = await Employee.update(
       {
-        meritIncreasePercentage: 0,
-        meritIncreaseDollar: 0,
-        newAnnualSalary: 0,
-        newHourlyRate: 0,
+        bonus2025: 0,
         approvalStatus: null,
-        meritHistory: null,
+        bonusHistory: null,
       },
       {
         where: {
@@ -898,7 +822,7 @@ export const resetSupervisorMeritData = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `Successfully reset merit data for ${updateCount} employees.`,
+      message: `Successfully reset bonus data for ${updateCount} employees.`,
       resetCount: updateCount,
     });
   } catch (error) {
