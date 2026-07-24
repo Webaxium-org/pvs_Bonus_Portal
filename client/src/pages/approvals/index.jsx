@@ -634,29 +634,41 @@ const Approvals = () => {
                 borderRadius: 1,
               }}
             >
-              {prevStatus === "pending" ? (
+              {!prevApproverName || prevApproverName === "N/A" ? (
                 <Chip
-                  label="Pending"
+                  label="No previous level approver"
                   size="small"
                   sx={{
-                    bgcolor: "#fff1abff",
-                    color: "#ffd60a",
-                    fontWeight: "bold",
-                    "& .MuiChip-icon": { color: "#795301ff" },
+                    bgcolor: "action.hover",
+                    color: "text.secondary",
+                    fontWeight: "medium",
                   }}
-                  icon={<HourglassEmptyIcon />}
                 />
               ) : (
-                getStatusChip(prevStatus)
-              )}
-              {prevApproverName && (
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: "0.7rem", lineHeight: 1 }}
-                >
-                  {prevApproverName}
-                </Typography>
+                <>
+                  {prevStatus === "pending" ? (
+                    <Chip
+                      label="Pending"
+                      size="small"
+                      sx={{
+                        bgcolor: "#fff1abff",
+                        color: "#ffd60a",
+                        fontWeight: "bold",
+                        "& .MuiChip-icon": { color: "#795301ff" },
+                      }}
+                      icon={<HourglassEmptyIcon />}
+                    />
+                  ) : (
+                    getStatusChip(prevStatus)
+                  )}
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontSize: "0.7rem", lineHeight: 1 }}
+                  >
+                    {prevApproverName}
+                  </Typography>
+                </>
               )}
             </Box>
           );
