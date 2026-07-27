@@ -76,6 +76,23 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
     }
   }, [open]);
 
+  // Helper to format date for HTML5 date input (YYYY-MM-DD)
+  const formatDateForInput = (dateVal) => {
+    if (!dateVal) return "";
+    if (typeof dateVal === "string") {
+      const match = dateVal.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (match) return match[1];
+      const d = new Date(dateVal);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split("T")[0];
+      }
+    }
+    if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+      return dateVal.toISOString().split("T")[0];
+    }
+    return "";
+  };
+
   // Populate form when employee prop changes
   useEffect(() => {
     if (employee && open) {
@@ -94,7 +111,7 @@ const EditEmployeeModal = ({ open, onClose, onEmployeeUpdated, employee }) => {
         annualSalary: employee.annualSalary !== undefined && employee.annualSalary !== null ? employee.annualSalary : "",
         hourlyPayRate: employee.hourlyPayRate !== undefined && employee.hourlyPayRate !== null ? employee.hourlyPayRate : "",
         bonus2024: employee.bonus2024 !== undefined && employee.bonus2024 !== null ? employee.bonus2024 : "",
-        lastHireDate: employee.lastHireDate || "",
+        lastHireDate: formatDateForInput(employee.lastHireDate),
         state: employee.address?.state || "",
         isActive: employee.isActive !== undefined ? employee.isActive : true,
         supervisor: employee.supervisorId || "",
