@@ -534,12 +534,17 @@ export const bulkCreateEmployees = async (req, res, next) => {
     for (let i = 0; i < employees.length; i++) {
       const emp = employees[i];
       
-      if (!emp.employeeId || !emp.fullName || !emp.email) {
+      const missingFields = [];
+      if (!emp.employeeId) missingFields.push("Employee Number");
+      if (!emp.fullName) missingFields.push("Full Name");
+      if (!emp.email) missingFields.push("Email");
+
+      if (missingFields.length > 0) {
         skippedDuplicates.push({
           employeeId: emp.employeeId || "N/A",
           employeeName: emp.fullName || "N/A",
           email: emp.email || "N/A",
-          reason: "Missing required fields (Employee Number, Full Name, Email)",
+          reason: `Missing required field(s): ${missingFields.join(", ")}`,
         });
       } else {
         validEmployees.push(emp);

@@ -85,11 +85,11 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-          // Trim all column names to remove leading/trailing spaces
+          // Trim all column names and clean non-breaking spaces
           const cleanedData = jsonData.map((row) => {
             const cleanedRow = {};
             Object.keys(row).forEach((key) => {
-              const trimmedKey = key.trim();
+              const trimmedKey = key.replace(/\u00a0/g, " ").trim();
               cleanedRow[trimmedKey] = row[key];
             });
             return cleanedRow;
@@ -144,25 +144,57 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
 
       setUploadProgress(40);
 
+      // Helper function to safely get column value with flexible case-insensitive matching
+      const getColumnValue = (row, ...columnNames) => {
+        const keys = Object.keys(row);
+        for (const colName of columnNames) {
+          // Direct key lookup first
+          if (
+            row[colName] !== undefined &&
+            row[colName] !== null &&
+            row[colName] !== ""
+          ) {
+            return row[colName];
+          }
+
+          // Normalized key lookup (lowercase & alphanumeric only)
+          const normalizedTarget = colName.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const matchingKey = keys.find((key) => {
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+            return normalizedKey === normalizedTarget;
+          });
+
+          if (
+            matchingKey &&
+            row[matchingKey] !== undefined &&
+            row[matchingKey] !== null &&
+            row[matchingKey] !== ""
+          ) {
+            return row[matchingKey];
+          }
+        }
+        return null;
+      };
+
       // Helper function to parse employee name - supports BOTH formats
       const parseEmployeeName = (row) => {
-        // Check for new format first: "Employee Name"
+        // Check for "Employee Name", "Full Name", "Name"
         const employeeName = getColumnValue(
           row,
           "Employee Name",
-          " Employee Name ",
-          "employeeName",
-          "EmployeeName"
+          "Full Name",
+          "EmployeeName",
+          "FullName",
+          "Name"
         );
 
         if (employeeName) {
-          // Return the full name as is
-          return employeeName.trim();
+          return String(employeeName).trim();
         }
 
         // Legacy format: "First Name" + "Last Name"
-        const firstName = getColumnValue(row, "First Name", " First Name ", "firstName", "FirstName") || "";
-        const lastName = getColumnValue(row, "Last Name", " Last Name ", "lastName", "LastName") || "";
+        const firstName = getColumnValue(row, "First Name", "firstName", "FirstName") || "";
+        const lastName = getColumnValue(row, "Last Name", "lastName", "LastName") || "";
 
         return `${firstName} ${lastName}`.trim();
       };
@@ -233,20 +265,6 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
         return isNaN(num) ? 0 : num;
       };
 
-      // Helper function to safely get column value (handles spaces in column names)
-      const getColumnValue = (row, ...columnNames) => {
-        for (const colName of columnNames) {
-          if (
-            row[colName] !== undefined &&
-            row[colName] !== null &&
-            row[colName] !== ""
-          ) {
-            return row[colName];
-          }
-        }
-        return null;
-      };
-
       // Transform data to match API format
       const formattedEmployees = employeesData.map((row, index) => {
         const fullName = parseEmployeeName(row);
@@ -255,17 +273,22 @@ const UploadEmployeesModal = ({ open, onClose, onEmployeesUploaded }) => {
           getColumnValue(
             row,
             "Employee Number",
-            " Employee Number ",
+            "Employee ID",
+            "Emp Number",
+            "Emp No",
+            "Emp ID",
             "employeeNumber",
-            "EmployeeNumber",
+            "employeeId"
           ) || "";
+
         const workEmail =
           getColumnValue(
             row,
             "Work Email",
-            " Work Email ",
+            "Email",
+            "Email Address",
             "workEmail",
-            "WorkEmail",
+            "WorkEmail"
           ) || "";
 
         // Try multiple variations of the hourly pay rate column name
