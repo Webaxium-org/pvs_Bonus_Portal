@@ -302,7 +302,6 @@ export const getMyApprovals = async (req, res, next) => {
           { level4ApproverId: approverId },
           { level5ApproverId: approverId },
         ],
-        id: { [Op.ne]: approverId },
       },
       attributes: { exclude: ["password"] },
       include: [
