@@ -633,17 +633,58 @@ export const bulkCreateEmployees = async (req, res, next) => {
     const employeeIdMap = new Map();
     const nameMap = new Map();
 
+    // Build lookup maps
+    const addToNameMap = (key, emp) => {
+      if (!key) return;
+      const normalized = key.toLowerCase().trim();
+      if (normalized && !nameMap.has(normalized)) {
+        nameMap.set(normalized, emp);
+      }
+    };
+
     for (const emp of allEmployees) {
+      if (!emp.fullName) continue;
       employeeIdMap.set(emp.employeeId, emp);
-      const fullName = emp.fullName.toLowerCase();
-      nameMap.set(fullName, emp);
-      // Also try "LastName, FirstName" and "FirstName LastName" variants
-      const nameParts = emp.fullName.split(' ');
-      if (nameParts.length >= 2) {
-        const firstName = nameParts.slice(0, -1).join(' ');
-        const lastName = nameParts[nameParts.length - 1];
-        const lastFirst = `${lastName}, ${firstName}`.toLowerCase();
-        nameMap.set(lastFirst, emp);
+      employeeIdMap.set(String(emp.employeeId), emp);
+
+      const fullName = emp.fullName.trim();
+      addToNameMap(fullName, emp);
+
+      if (fullName.includes(',')) {
+        const [lastNamePart, firstNamePart] = fullName.split(',').map(s => s.trim());
+        if (lastNamePart && firstNamePart) {
+          const firstNames = firstNamePart.split(' ').map(s => s.trim());
+          const primaryFirst = firstNames[0];
+
+          addToNameMap(`${lastNamePart}, ${firstNamePart}`, emp);
+          addToNameMap(`${lastNamePart}, ${primaryFirst}`, emp);
+          addToNameMap(`${firstNamePart} ${lastNamePart}`, emp);
+          addToNameMap(`${primaryFirst} ${lastNamePart}`, emp);
+
+          if (primaryFirst.toLowerCase() === 'timothy') {
+            addToNameMap(`${lastNamePart}, tim`, emp);
+            addToNameMap(`tim ${lastNamePart}`, emp);
+          } else if (primaryFirst.toLowerCase() === 'tim') {
+            addToNameMap(`${lastNamePart}, timothy`, emp);
+            addToNameMap(`timothy ${lastNamePart}`, emp);
+          }
+        }
+      } else {
+        const parts = fullName.split(' ').map(s => s.trim());
+        if (parts.length >= 2) {
+          const firstName = parts[0];
+          const lastName = parts[parts.length - 1];
+          addToNameMap(`${lastName}, ${firstName}`, emp);
+          addToNameMap(`${firstName} ${lastName}`, emp);
+
+          if (firstName.toLowerCase() === 'timothy') {
+            addToNameMap(`${lastName}, tim`, emp);
+            addToNameMap(`tim ${lastName}`, emp);
+          } else if (firstName.toLowerCase() === 'tim') {
+            addToNameMap(`${lastName}, timothy`, emp);
+            addToNameMap(`timothy ${lastName}`, emp);
+          }
+        }
       }
     }
 
@@ -652,7 +693,7 @@ export const bulkCreateEmployees = async (req, res, next) => {
       if (!nameOrId || nameOrId === "-") return null;
 
       // Try employee ID first
-      let approver = employeeIdMap.get(nameOrId);
+      let approver = employeeIdMap.get(nameOrId) || employeeIdMap.get(String(nameOrId));
       if (approver) return approver;
 
       // Try name matching
@@ -901,17 +942,57 @@ export const syncApproverIds = async (req, res, next) => {
     const nameMap = new Map();
 
     // Build lookup maps
+    const addToNameMapSync = (key, emp) => {
+      if (!key) return;
+      const normalized = key.toLowerCase().trim();
+      if (normalized && !nameMap.has(normalized)) {
+        nameMap.set(normalized, emp);
+      }
+    };
+
     for (const emp of allEmployees) {
+      if (!emp.fullName) continue;
       employeeIdMap.set(emp.employeeId, emp);
-      const fullName = emp.fullName.toLowerCase();
-      nameMap.set(fullName, emp);
-      // Also try "LastName, FirstName" and "FirstName LastName" variants
-      const nameParts = emp.fullName.split(' ');
-      if (nameParts.length >= 2) {
-        const firstName = nameParts.slice(0, -1).join(' ');
-        const lastName = nameParts[nameParts.length - 1];
-        const lastFirst = `${lastName}, ${firstName}`.toLowerCase();
-        nameMap.set(lastFirst, emp);
+      employeeIdMap.set(String(emp.employeeId), emp);
+
+      const fullName = emp.fullName.trim();
+      addToNameMapSync(fullName, emp);
+
+      if (fullName.includes(',')) {
+        const [lastNamePart, firstNamePart] = fullName.split(',').map(s => s.trim());
+        if (lastNamePart && firstNamePart) {
+          const firstNames = firstNamePart.split(' ').map(s => s.trim());
+          const primaryFirst = firstNames[0];
+
+          addToNameMapSync(`${lastNamePart}, ${firstNamePart}`, emp);
+          addToNameMapSync(`${lastNamePart}, ${primaryFirst}`, emp);
+          addToNameMapSync(`${firstNamePart} ${lastNamePart}`, emp);
+          addToNameMapSync(`${primaryFirst} ${lastNamePart}`, emp);
+
+          if (primaryFirst.toLowerCase() === 'timothy') {
+            addToNameMapSync(`${lastNamePart}, tim`, emp);
+            addToNameMapSync(`tim ${lastNamePart}`, emp);
+          } else if (primaryFirst.toLowerCase() === 'tim') {
+            addToNameMapSync(`${lastNamePart}, timothy`, emp);
+            addToNameMapSync(`timothy ${lastNamePart}`, emp);
+          }
+        }
+      } else {
+        const parts = fullName.split(' ').map(s => s.trim());
+        if (parts.length >= 2) {
+          const firstName = parts[0];
+          const lastName = parts[parts.length - 1];
+          addToNameMapSync(`${lastName}, ${firstName}`, emp);
+          addToNameMapSync(`${firstName} ${lastName}`, emp);
+
+          if (firstName.toLowerCase() === 'timothy') {
+            addToNameMapSync(`${lastName}, tim`, emp);
+            addToNameMapSync(`tim ${lastName}`, emp);
+          } else if (firstName.toLowerCase() === 'tim') {
+            addToNameMapSync(`${lastName}, timothy`, emp);
+            addToNameMapSync(`timothy ${lastName}`, emp);
+          }
+        }
       }
     }
 
@@ -919,7 +1000,7 @@ export const syncApproverIds = async (req, res, next) => {
     const findApproverByName = (nameOrId) => {
       if (!nameOrId || nameOrId === "-") return null;
 
-      let approver = employeeIdMap.get(nameOrId);
+      let approver = employeeIdMap.get(nameOrId) || employeeIdMap.get(String(nameOrId));
       if (approver) return approver;
 
       const searchKey = nameOrId.toLowerCase().trim();
@@ -1832,8 +1913,12 @@ export const checkAllApprovalsCompleted = async (req, res, next) => {
         const levelKey = `level${level}`;
         const approverIdField = `${levelKey}ApproverId`;
 
-        // If this level has an approver assigned
-        if (employee[approverIdField]) {
+        // If this level has an approver assigned (by ID or by Name)
+        const approverName = employee[`${levelKey}ApproverName`]?.trim();
+        if (
+          employee[approverIdField] ||
+          (approverName && approverName !== "Not Assigned" && approverName !== "-")
+        ) {
           const levelStatus = approvalStatus[levelKey]?.status;
 
           // If this level is not approved, add to pending

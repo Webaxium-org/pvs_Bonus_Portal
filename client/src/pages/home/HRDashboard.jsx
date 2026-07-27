@@ -296,24 +296,39 @@ const HRDashboard = ({ user }) => {
   // Calculate approval completion stats
   const totalEmployees = filteredEmployees.length;
   const fullyApprovedCount = filteredEmployees.filter((emp) => {
-    // Check if all 5 levels are approved
+    let approvalStatus = emp.approvalStatus;
+    if (typeof approvalStatus === "string") {
+      try {
+        approvalStatus = JSON.parse(approvalStatus);
+      } catch (e) {
+        approvalStatus = {};
+      }
+    }
+    approvalStatus = approvalStatus || {};
+
+    let hasAssignedApprover = false;
     for (let i = 1; i <= 5; i++) {
-      const approver = emp[`level${i}Approver`];
-      if (approver) {
-        const status = emp.approvalStatus?.[`level${i}`]?.status;
+      const approverName = emp[`level${i}ApproverName`]?.trim();
+      const approverId = emp[`level${i}ApproverId`];
+      const approverObj = emp[`level${i}Approver`];
+
+      const isAssigned =
+        (approverName &&
+          approverName !== "Not Assigned" &&
+          approverName !== "-") ||
+        !!approverId ||
+        !!approverObj;
+
+      if (isAssigned) {
+        hasAssignedApprover = true;
+        const status = approvalStatus[`level${i}`]?.status;
         if (status !== "approved") {
           return false;
         }
       }
     }
-    // Employee must have at least one approver assigned
-    return (
-      emp.level1Approver ||
-      emp.level2Approver ||
-      emp.level3Approver ||
-      emp.level4Approver ||
-      emp.level5Approver
-    );
+
+    return hasAssignedApprover;
   }).length;
 
   // Calculate total bonus aggregates for all employees
